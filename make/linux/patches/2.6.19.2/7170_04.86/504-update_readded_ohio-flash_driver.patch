@@ -1,0 +1,62 @@
+--- linux-2.6.19/drivers/mtd/maps/Kconfig
++++ linux-2.6.19/drivers/mtd/maps/Kconfig
+@@ -480,6 +480,15 @@
+ 	  NVRAM on the Momenco Ocelot board. If you have one of these boards
+ 	  and would like access to either of these, say 'Y'.
+ 
++config MTD_OHIO
++        tristate "AVM Ohio/Ar7 boot flash device"
++        depends on (MIPS && (MIPS_OHIO || MIPS_AR7 || MIPS_UR8)) || ARCH_DAVINCI
++        select MTD_CFI_I1
++        help
++          This enables access routines for the boot flash device and for the
++          NVRAM on the Momenco Ocelot board. If you have one of these boards
++          and would like access to either of these, say 'Y'.
++
+ config MTD_SOLUTIONENGINE
+ 	tristate "CFI Flash device mapped on Hitachi SolutionEngine"
+ 	depends on SUPERH && MTD_CFI && MTD_REDBOOT_PARTS
+--- linux-2.6.19/drivers/mtd/maps/Makefile
++++ linux-2.6.19/drivers/mtd/maps/Makefile
+@@ -42,6 +42,7 @@
+ obj-$(CONFIG_MTD_SCx200_DOCFLASH)+= scx200_docflash.o
+ obj-$(CONFIG_MTD_DBOX2)		+= dbox2-flash.o
+ obj-$(CONFIG_MTD_OCELOT)	+= ocelot.o
++obj-$(CONFIG_MTD_OHIO)		+= ohio-flash.o
+ obj-$(CONFIG_MTD_SOLUTIONENGINE)+= solutionengine.o
+ obj-$(CONFIG_MTD_PCI)		+= pci.o
+ obj-$(CONFIG_MTD_ALCHEMY)       += alchemy-flash.o
+--- linux-2.6.19/drivers/mtd/maps/ohio-flash.c
++++ linux-2.6.19/drivers/mtd/maps/ohio-flash.c
+@@ -130,7 +130,7 @@
+             /*--- printk("[0x%x]", *start); ---*/
+         mtd->read(mtd, *start, sizeof(super), (size_t *)&retlen, (unsigned char *)&super);
+         if(super.s_magic == SQUASHFS_MAGIC) {
+-            printk("[ohio_find_hidden_filesystem]: super block found: bytes_used: 0x%x/%u\n", super.bytes_used, super.bytes_used);
++            printk("[ohio_find_hidden_filesystem]: super block found: bytes_used: 0x%x/%u\n", (u_int32_t)super.bytes_used, (u_int32_t)super.bytes_used);
+             if(fs_size)
+                 *fs_size = super.bytes_used + sizeof(super) + (*start - first_start_pos);
+             *size  = end_pos - *start;
+@@ -278,11 +278,11 @@
+                     break;
+                 case 1:
+                     partition_info[mtd_index].name = "kernel";
+-                    partition_info[mtd_index].mask_flags = MTD_NO_VIRTBLOCKS;
++                    partition_info[mtd_index].mask_flags = 0 /*MTD_NO_VIRTBLOCKS*/;
+                     break;
+                 case 0:
+                     partition_info[mtd_index].name = "filesystem";
+-                    partition_info[mtd_index].mask_flags = MTD_NO_VIRTBLOCKS;
++                    partition_info[mtd_index].mask_flags = 0 /*MTD_NO_VIRTBLOCKS*/;
+                     break;
+                 case 3:
+                     partition_info[mtd_index].name = "tffs (1)";
+@@ -443,7 +443,7 @@
+         printk("[mtd] ohio_flash_map: name=%s bankwidth=%u virt=0x%p phys=0x%lx size=0x%lx\n",
+             ohio_flash_map.name, ohio_flash_map.bankwidth, ohio_flash_map.virt, ohio_flash_map.phys, ohio_flash_map.size);
+ 
+-        mymtd->flags = MTD_CLEAR_BITS | MTD_CAP_NORFLASH;   /* Create MTD devices for each partition. */
++        mymtd->flags = MTD_CAP_NORFLASH;   /* Create MTD devices for each partition. */
+         add_mtd_partitions(mymtd, partition_info, NUM_PARTITIONS);
+ 
+         for(i = 0 ; i < NUM_PARTITIONS ; i++) {

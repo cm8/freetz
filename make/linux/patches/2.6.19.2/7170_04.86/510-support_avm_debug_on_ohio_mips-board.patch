@@ -1,0 +1,11 @@
+--- linux-2.6.19/drivers/char/Kconfig
++++ linux-2.6.19/drivers/char/Kconfig
+@@ -1284,7 +1284,7 @@
+ 
+ config AVM_DEBUG
+ 	tristate "support for AVM Debug (instead UBIK2 Debug)"
+-    depends on MIPS_UR8 || MIPS_FUSIV
++    depends on MIPS_OHIO || MIPS_UR8 || MIPS_FUSIV
+ 	default y
+ 
+ config LED_REMAP_STATES

@@ -1,0 +1,10 @@
+--- linux-2.6.19/drivers/char/Kconfig
++++ linux-2.6.19/drivers/char/Kconfig
+@@ -1091,6 +1091,7 @@
+ 
+ config TFFS_CRYPT
+     depends on TFFS
++    select CRYPTO_AES
+     bool "AVM TFFS crypt support"
+     default y
+ 

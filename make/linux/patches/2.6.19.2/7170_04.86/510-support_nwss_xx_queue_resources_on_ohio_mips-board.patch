@@ -1,0 +1,153 @@
+--- linux-2.6.19/include/linux/ioport.h
++++ linux-2.6.19/include/linux/ioport.h
+@@ -94,19 +94,21 @@
+ /* PC/ISA/whatever - the normal PC address spaces: IO and memory */
+ extern struct resource ioport_resource;
+ extern struct resource iomem_resource;
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8)
+ extern struct resource nwss_tx_queue_resource;
+ extern struct resource nwss_tx_completion_queue_resource;
+ extern struct resource nwss_rx_queue_resource;
+ extern struct resource nwss_free_buffer_queue_resource;
+ extern struct resource nwss_free_packet_queue_resource;
++#ifdef CONFIG_MIPS_UR8
+ extern struct resource gpio_resource;
+ extern struct resource timer_resource;
+ #endif /*--- #ifdef CONFIG_MIPS_UR8 ---*/
+-#if defined(CONFIG_ARCH_DAVINCI)
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) ---*/
++#if defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_AR7)
+ extern struct resource gpio_resource;
+ extern struct resource timer_resource;
+-#endif /*--- #if defined(CONFIG_ARCH_DAVINCI) ---*/
++#endif /*--- #if defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_AR7) ---*/
+ #ifdef CONFIG_MIPS_FUSIV
+ extern struct resource gpio_resource;
+ #endif/*--- #ifdef CONFIG_MIPS_FUSIV ---*/
+--- linux-2.6.19/kernel/resource.c
++++ linux-2.6.19/kernel/resource.c
+@@ -36,7 +36,7 @@
+ };
+ EXPORT_SYMBOL(iomem_resource);
+ 
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) 
+ struct resource nwss_tx_queue_resource = {
+     .name   = "NWSS Tx Queue",
+     .start  = 0,
+@@ -77,6 +77,7 @@
+ };
+ EXPORT_SYMBOL(nwss_free_packet_queue_resource);
+ 
++#ifdef CONFIG_MIPS_UR8
+ struct resource gpio_resource = {
+     .name   = "gpio",
+     .start  = 0,
+@@ -93,6 +94,7 @@
+ };
+ EXPORT_SYMBOL(timer_resource);
+ #endif /*--- #ifdef CONFIG_MIPS_UR8 ---*/
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) ---*/
+ 
+ #if defined(CONFIG_MIPS_FUSIV)
+ struct resource gpio_resource = {
+@@ -126,6 +128,23 @@
+ EXPORT_SYMBOL(timer_resource);
+ #endif /*--- #if defined(CONFIG_ARCH_DAVINCI) ---*/
+ 
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_AR7)
++struct resource gpio_resource = {
++    .name   = "gpio",
++    .start  = 0,
++    .end    = 31,
++	.flags	= IORESOURCE_IO
++};
++EXPORT_SYMBOL(gpio_resource);
++
++struct resource timer_resource = {
++    .name   = "timer",
++    .start  = 0,
++    .end    = 1,
++	.flags	= IORESOURCE_IO
++};
++EXPORT_SYMBOL(timer_resource);
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_AR7) ---*/
+ 
+ static DEFINE_RWLOCK(resource_lock);
+ 
+@@ -239,7 +258,7 @@
+     .release	= seq_release,
+ };
+ 
+-#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI)
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI)
+ static int iotimer_open(struct inode *inode, struct file *file)
+ {
+ 	int res = seq_open(file, &resource_op);
+@@ -256,11 +275,11 @@
+     .llseek		= seq_lseek,
+     .release	= seq_release,
+ };
+-#endif /*--- #if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) ---*/
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) ---*/
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8)
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+ char *proc_nwss_names[] = {
+@@ -354,7 +373,7 @@
+         .release	= seq_release,
+     }
+ };
+-#endif /*--- #ifdef CONFIG_MIPS_UR8 ---*/
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) ---*/
+ 
+ static int __init ioresources_init(void)
+ {
+@@ -389,7 +408,7 @@
+ 	if (entry)
+ 		entry->proc_fops = &proc_iomem_operations;
+ 
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8)
+     /*--------------------------------------------------------------------------------------*\
+         nwss_tx_queue_resource
+         nwss_tx_completion_queue_resource 
+@@ -410,8 +429,8 @@
+         if (entry)
+             entry->proc_fops = &proc_nwss_operations[i];
+     }
+-#endif /*--- #ifdef CONFIG_MIPS_UR8 ---*/
+-#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_FUSIV)
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) ---*/
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_FUSIV)
+     /*--------------------------------------------------------------------------------------*\
+     \*--------------------------------------------------------------------------------------*/
+ #ifdef CONFIG_GRKERNSEC_PROC_ADD
+@@ -425,11 +444,11 @@
+ #endif
+ 	if (entry)
+ 		entry->proc_fops = &proc_gpio_operations;
+-#endif /*--- #if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_FUSIV) ---*/
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) || defined(CONFIG_MIPS_FUSIV) ---*/
+ 
+     /*--------------------------------------------------------------------------------------*\
+     \*--------------------------------------------------------------------------------------*/
+-#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) 
++#if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) 
+ #ifdef CONFIG_GRKERNSEC_PROC_ADD
+ #ifdef CONFIG_GRKERNSEC_PROC_USER
+ 	entry = create_proc_entry("hw_timer", S_IRUSR, NULL);
+@@ -441,7 +460,7 @@
+ #endif
+ 	if (entry)
+ 		entry->proc_fops = &proc_timer_operations;
+-#endif /*--- #if defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) ---*/
++#endif /*--- #if defined(CONFIG_MIPS_OHIO) || defined(CONFIG_MIPS_UR8) || defined(CONFIG_ARCH_DAVINCI) ---*/
+ 	return 0;
+ }
+ __initcall(ioresources_init);

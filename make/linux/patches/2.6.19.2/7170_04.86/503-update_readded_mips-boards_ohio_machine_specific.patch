@@ -1,0 +1,512 @@
+--- linux-2.6.19/include/asm-mips/mach_avm.h
++++ linux-2.6.19/include/asm-mips/mach_avm.h
+@@ -21,7 +21,8 @@
+     avm_clock_id_usb        = 0x04,
+     avm_clock_id_dsp        = 0x08,
+     avm_clock_id_vbus       = 0x10,
+-    avm_clock_id_peripheral = 0x20
++    avm_clock_id_peripheral = 0x20,
++    avm_clock_id_vlynq      = 0x40
+ };
+ 
+ #include <asm/mips-boards/ohio_clk.h>
+--- linux-2.6.19/arch/mips/mips-boards/ohio/ohio_clk.c
++++ linux-2.6.19/arch/mips/mips-boards/ohio/ohio_clk.c
+@@ -181,7 +181,7 @@
+     { freq:150000000, dspfreq: 150000000, pre_div: 1, mult: 12, post_div: 2,  post_div2: 2,},
+     { freq:150000000, dspfreq: 300000000, pre_div: 1, mult: 12, post_div: 2,  post_div2: 1, prefer: 1 },
+     { freq:162500000, dspfreq: 162500000, pre_div: 2, mult: 13, post_div: 1,  post_div2: 1 },
+-    { 0, 0, 0, 0 }
++    { freq:0, dspfreq:0, pre_div:0, mult:0, post_div:0, post_div2:0, prefer:0, startup:0 }
+ };
+ 
+ struct _valid_clk valid_mips_clk_with_dsp_xtal[] = {
+@@ -192,7 +192,7 @@
+     { freq: default_ohio_dsp_xtal * 5, pre_div: 1, mult:  5, post_div: 1 },
+     { startup: 1, freq: default_ohio_dsp_xtal * 6, pre_div: 1, mult:  6, post_div: 1 }, /* Frequ: 211968000 Hz */
+     { freq: default_ohio_dsp_xtal * 7, pre_div: 1, mult:  7, post_div: 1 },  /* 247296000 Hz */
+-    { 0, 0, 0, 0 }
++    { freq:0, dspfreq:0, pre_div:0, mult:0, post_div:0, post_div2:0, prefer:0, startup:0 }
+ };
+ /*--- kein hoch- und runtertakten erlauben ! ---*/
+ struct _valid_clk valid_mips_clk_with_lan_xtal[] = {
+@@ -206,7 +206,7 @@
+     { freq: default_ohio_lan_xtal * 8, pre_div: 1, mult:  8, post_div: 1 },  /* 200 MHz */
+     { startup: 1, freq: default_ohio_lan_xtal * 9, pre_div: 1, mult:  9, post_div: 1 },  /* 225 MHz */
+     /*--- { freq: default_ohio_lan_xtal * 10, pre_div: 1, mult:  10, post_div: 1 },   ---*//* 250 MHz */
+-    { 0, 0, 0, 0 }
++    { freq:0, dspfreq:0, pre_div:0, mult:0, post_div:0, post_div2:0, prefer:0, startup:0 }
+ };
+ 
+ /*------------------------------------------------------------------------------------------*\
+@@ -320,7 +320,6 @@
+ #endif /*--- #if defined(OHIO_CLK_DEBUG) ---*/
+         return V;
+     }
+-    prom_init();
+     hwrev = prom_getenv("HWRevision");
+ #if defined(OHIO_CLK_DEBUG)
+     prom_printf("[ohio_get_valid_mips_clk_table] HWRevision=\"%s\"\n", hwrev);
+@@ -587,8 +586,10 @@
+     if(strstr(buff, "mHz")) clk = 1000 * 1000;
+     if(strstr(buff, "MHz")) clk = 1000 * 1000;
+ 
++#if defined(OHIO_CLK_DEBUG)
+     if(clk)
+         DEB_TRACE("[ohio_change_clock_write] faktor is %u\n", clk);
++#endif
+ 
+     if((p = strstr(buff, "CPU:"))) {
+         p += sizeof("CPU:") - 1;
+--- linux-2.6.19/arch/mips/mips-boards/ohio/ohio_int.c
++++ linux-2.6.19/arch/mips/mips-boards/ohio/ohio_int.c
+@@ -40,30 +40,29 @@
+ #include <linux/avm_profile.h>
+ #endif /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
+ 
+-extern asmlinkage void mipsIRQ(void);
+ static void __init ohio_init_irq(void);
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-asmlinkage void ohio_hw0_irqdispatch(struct pt_regs *regs) {  /* TODO */
++asmlinkage void ohio_hw0_irqdispatch(void) {  /* TODO */
+ #if defined(CONFIG_AVM_SIMPLE_PROFILING) 
+-    /*--- struct pt_regs lregs; ---*/
+-    /*--- regs.cp0_epc = read_c0_epc(); ---*/
+-    void DO_IRQ(unsigned int i, struct pt_regs *_regs) {
++    struct pt_regs regs;
++    regs.cp0_epc = read_c0_epc();
++    void DO_IRQ(unsigned int i) {
+         struct irq_desc *desc = irq_desc + i;
+         avm_simple_profiling_log(avm_profile_data_type_hw_irq_begin, (unsigned int)desc, i);
+-        do_IRQ(i, _regs);
++        do_IRQ(i);
+         avm_simple_profiling_log(avm_profile_data_type_hw_irq_end, (unsigned int)desc, i);
+     }
+ #else /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
+-#define DO_IRQ(i, r)   do_IRQ(i, r)
++#define DO_IRQ(i)   do_IRQ(i)
+ #endif /*--- #else ---*/ /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
+ 
+     struct _irq_hw *IRQ = (struct _irq_hw *)OHIO_IRQ_CTRL_BASE;
+     unsigned int priority_index_reg = IRQ->priority_index_reg;
+     unsigned int irq      = (priority_index_reg >> 16) & 0x3F;
+-    extern void r4k_wait_end(void);
+-    r4k_wait_end();
++    extern void cpu_wait_end(void);
++    cpu_wait_end();
+ 
+     irq += MIPS_EXCEPTION_OFFSET;
+     /*--- printk("[ohio_hw0_irqdispatch] irq=%u chan_nr=%u\n", irq, chan_nr); ---*/
+@@ -74,17 +73,17 @@
+                 break;
+         }
+         if(_irq != 32)
+-            DO_IRQ(_irq, regs);
++            DO_IRQ(_irq);
+     }
+ #if defined(CONFIG_VLYNQ_SUPPORT)
+     else if(irq == OHIOINT_VLYNQ0) {
+         unsigned int vlynq_irq = vlynq_get_irq(0) + OHIO_INT_START_VIRTUAL;
+         if(vlynq_irq != (unsigned int)-1)
+-            DO_IRQ(vlynq_irq, regs);
++            DO_IRQ(vlynq_irq);
+     }
+ #endif /*--- #if defined(CONFIG_VLYNQ_SUPPORT) ---*/
+ 	kstat_this_cpu.irqs[MIPS_EXCEPTION_OFFSET - 2]++;
+-    DO_IRQ(irq, regs);
++    DO_IRQ(irq);
+ #if defined(CONFIG_AVM_SIMPLE_PROFILING) 
+     avm_simple_profiling(regs, irq);
+ #endif /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
+@@ -92,9 +91,9 @@
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-asmlinkage void ohio_hw1_irqdispatch(struct pt_regs *regs)   /* TODO */
++asmlinkage void ohio_hw1_irqdispatch(void)   /* TODO */
+ {
+-	/*--- do_IRQ(OHIOINT_UART1, regs); ---*/
++	/*--- do_IRQ(OHIOINT_UART1); ---*/
+     /*--- struct irq_desc *desc; ---*/
+ 	/*--- int cpu = smp_processor_id(); ---*/
+     struct _irq_hw *IRQ = (struct _irq_hw *)OHIO_IRQ_CTRL_BASE;
+@@ -154,21 +153,21 @@
+ 	clear_c0_status(0x0000ff00);
+ 
+ 	/* Now safe to set the exception vector. */
+-	set_except_vector(0, mipsIRQ);
++        /*--- set_except_vector(0, mipsIRQ); ---*/       /* in genex.S */
+ 
+ 	mips_cpu_irq_init(0);
+ }
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-irqreturn_t dummy_timer_irq(int irq, void *context, struct pt_regs *regs) {
++irqreturn_t dummy_timer_irq(int irq, void *context) {
+     panic("dummy_timer_irq must not be called\n");
+     return 0;
+ }
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-irqreturn_t dummy_system_irq_2(int irq, void *context, struct pt_regs *regs) {
++irqreturn_t dummy_system_irq_2(int irq, void *context) {
+     panic("dummy_system_irq_2 must not be called\n");
+     return 0;
+ }
+@@ -278,5 +277,113 @@
+     return 0;
+ }
+ 
++/*-------------------------------------------------------------------------------------*\
++\*-------------------------------------------------------------------------------------*/
++static inline int clz(unsigned long x)
++{
++	__asm__ (
++	"	.set	push					\n"
++	"	.set	mips32					\n"
++	"	clz	%0, %1					\n"
++	"	.set	pop					\n"
++	: "=r" (x)
++	: "r" (x));
++
++	return x;
++}
++
++
++/*-------------------------------------------------------------------------------------*\
++ * Version of ffs that only looks at bits 12..15.
++\*-------------------------------------------------------------------------------------*/
++static inline unsigned int irq_ffs(unsigned int pending)
++{
++#if defined(CONFIG_CPU_MIPS32) || defined(CONFIG_CPU_MIPS64)
++	return -clz(pending) + 31 - CAUSEB_IP;
++#else
++	unsigned int a0 = 7;
++	unsigned int t0;
++
++	t0 = pending & 0xf000;
++	t0 = t0 < 1;
++	t0 = t0 << 2;
++	a0 = a0 - t0;
++	pending = pending << t0;
++
++	t0 = pending & 0xc000;
++	t0 = t0 < 1;
++	t0 = t0 << 1;
++	a0 = a0 - t0;
++	pending = pending << t0;
++
++	t0 = pending & 0x8000;
++	t0 = t0 < 1;
++	//t0 = t0 << 2;
++	a0 = a0 - t0;
++	//pending = pending << t0;
++
++	return a0;
++#endif
++}
++
++/*
++ * IRQs on the Malta board look basically (barring software IRQs which we
++ * don't use at all and all external interrupt sources are combined together
++ * on hardware interrupt 0 (MIPS IRQ 2)) like:
++ *
++ *	MIPS IRQ	Source
++ *      --------        ------
++ *             0	Software (ignored)
++ *             1        Software (ignored)
++ *             2        Combined hardware interrupt (hw0)
++ *             3        Hardware (ignored)
++ *             4        Hardware (ignored)
++ *             5        Hardware (ignored)
++ *             6        Hardware (ignored)
++ *             7        R4k timer (what we use)
++ *
++ * We handle the IRQ according to _our_ priority which is:
++ *
++ * Highest ----     R4k Timer
++ * Lowest  ----     Combined hardware interrupt
++ *
++ * then we just return, if multiple IRQs are pending then we will just take
++ * another exception, big deal.
++ */
++
++/*-------------------------------------------------------------------------------------*\
++ * generischer IRQ dispatcher, aufgerufen aus genex.S (handle_int)
++\*-------------------------------------------------------------------------------------*/
++asmlinkage void plat_irq_dispatch(void)
++{
++	unsigned int pending = read_c0_cause() & read_c0_status() & ST0_IM;
++	int irq;
++#if defined(CONFIG_AVM_SIMPLE_PROFILING) 
++    struct pt_regs regs;
++    regs.cp0_epc = read_c0_epc();
++#endif /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
++
++	irq = irq_ffs(pending);
++    /*--- prom_printf("platirq %d\n", irq); ---*/
++
++#if defined(CONFIG_AVM_SIMPLE_PROFILING) 
++    avm_simple_profiling(&regs, irq);
++    avm_simple_profiling_log(avm_profile_data_type_hw_irq_begin, (unsigned int)(irq_desc + irq), irq);
++#endif /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
++
++	if (irq == 2) {
++		ohio_hw0_irqdispatch();
++    } else if (irq == 5) {
++		ohio_hw1_irqdispatch();
++    } else if (irq == 7) {
++        mips_timer_interrupt(irq, NULL);
++    } else {
++		spurious_interrupt();
++    }
++#if defined(CONFIG_AVM_SIMPLE_PROFILING) 
++    avm_simple_profiling_log(avm_profile_data_type_hw_irq_end, (unsigned int)(irq_desc + irq), irq);
++#endif /*--- #if defined(CONFIG_AVM_SIMPLE_PROFILING) ---*/ 
++}
++
+ EXPORT_SYMBOL (ohio_sleep_mode);
+ EXPORT_SYMBOL (ohio_nsec_timer);
+--- linux-2.6.19/arch/mips/mips-boards/ohio/ohio_irq_cpu.c
++++ linux-2.6.19/arch/mips/mips-boards/ohio/ohio_irq_cpu.c
+@@ -495,48 +495,88 @@
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+ static hw_irq_controller mips_cpu_irq_controller_system = {
+-	"OHIO System",
+-	mips_cpu_irq_startup,
+-	mips_cpu_irq_shutdown,
+-	mips_cpu_irq_enable,
+-	mips_cpu_irq_disable,
+-	mips_cpu_irq_ack,
+-	mips_cpu_irq_end,
+-	NULL			/* no affinity stuff for UP */
++	name:		"OHIO System",
++	startup:	mips_cpu_irq_startup,
++	shutdown:	mips_cpu_irq_shutdown,
++	enable:		mips_cpu_irq_enable,
++	disable:	mips_cpu_irq_disable,
++
++	ack:		mips_cpu_irq_ack,
++	mask:		NULL,
++	mask_ack:	NULL,
++	unmask:		NULL,
++	eoi:		NULL,
++
++	end:		mips_cpu_irq_end,
++	set_affinity:	NULL,	/* no affinity stuff for UP */
++	retrigger:	NULL,			
++	set_type:	NULL,
++	set_wake:	NULL,
++	typename:	NULL
+ };
+ 
+ static hw_irq_controller mips_cpu_irq_controller_primary = {
+-	"OHIO primary",
+-	mips_cpu_irq_startup,
+-	mips_cpu_irq_shutdown,
+-	mips_cpu_irq_enable,
+-	mips_cpu_irq_disable,
+-	mips_cpu_irq_ack,
+-	mips_cpu_irq_end,
+-	NULL			/* no affinity stuff for UP */
++	name:           "OHIO primary",
++	startup:        mips_cpu_irq_startup,
++	shutdown:       mips_cpu_irq_shutdown,
++	enable:         mips_cpu_irq_enable,
++	disable:        mips_cpu_irq_disable,
++
++	ack:            mips_cpu_irq_ack,
++	mask:		NULL,
++	mask_ack:	NULL,
++	unmask:		NULL,
++	eoi:		NULL,
++
++	end:            mips_cpu_irq_end,
++	set_affinity:   NULL,	/* no affinity stuff for UP */
++	retrigger:	NULL,			
++	set_type:	NULL,
++	set_wake:	NULL,
++	typename:	NULL
+ };
+ 
+ static hw_irq_controller mips_cpu_irq_controller_secondary = {
+-	"OHIO secondary",
+-	mips_cpu_irq_startup,
+-	mips_cpu_irq_shutdown,
+-	mips_cpu_irq_enable,
+-	mips_cpu_irq_disable,
+-	mips_cpu_irq_ack,
+-	mips_cpu_irq_end,
+-	NULL			/* no affinity stuff for UP */
++	name:           "OHIO secondary",
++	startup:        mips_cpu_irq_startup,
++	shutdown:       mips_cpu_irq_shutdown,
++	enable:         mips_cpu_irq_enable,
++	disable:        mips_cpu_irq_disable,
++
++	ack:            mips_cpu_irq_ack,
++	mask:		NULL,
++	mask_ack:	NULL,
++	unmask:		NULL,
++	eoi:		NULL,
++
++	end:            mips_cpu_irq_end,
++	set_affinity:   NULL,	/* no affinity stuff for UP */
++	retrigger:	NULL,			
++	set_type:	NULL,
++	set_wake:	NULL,
++	typename:	NULL
+ };
+ 
+ #if defined(CONFIG_VLYNQ_SUPPORT)
+ static hw_irq_controller mips_cpu_irq_controller_vlynq = {
+-	"OHIO vlynq",
+-	mips_cpu_irq_startup,
+-	mips_cpu_irq_shutdown,
+-	mips_cpu_irq_enable,
+-	mips_cpu_irq_disable,
+-	mips_cpu_irq_ack,
+-	mips_cpu_irq_end,
+-	NULL			/* no affinity stuff for UP */
++	name:           "OHIO vlynq",
++	startup:        mips_cpu_irq_startup,
++	shutdown:       mips_cpu_irq_shutdown,
++	enable:         mips_cpu_irq_enable,
++	disable:        mips_cpu_irq_disable,
++
++	ack:            mips_cpu_irq_ack,
++	mask:		NULL,
++	mask_ack:	NULL,
++	unmask:		NULL,
++	eoi:		NULL,
++
++	end:            mips_cpu_irq_end,
++	set_affinity:   NULL,	/* no affinity stuff for UP */
++	retrigger:	NULL,			
++	set_type:	NULL,
++	set_wake:	NULL,
++	typename:	NULL
+ };
+ #endif /*--- #if defined(CONFIG_VLYNQ_SUPPORT) ---*/
+ 
+@@ -556,26 +596,26 @@
+ 		irq_desc[i].status = IRQ_DISABLED;
+ 		irq_desc[i].action = NULL;
+ 		irq_desc[i].depth = 1;
+-		irq_desc[i].handler = &mips_cpu_irq_controller_system;
++		irq_desc[i].chip = &mips_cpu_irq_controller_system;
+ 	}
+ 	for ( ; i < irq_base + OHIO_INT_END_PRIMARY ; i++) {
+ 		irq_desc[i].status = IRQ_DISABLED;
+ 		irq_desc[i].action = NULL;
+ 		irq_desc[i].depth = 1;
+-		irq_desc[i].handler = &mips_cpu_irq_controller_primary;
++		irq_desc[i].chip = &mips_cpu_irq_controller_primary;
+ 	}
+ 	for ( ; i < irq_base + OHIO_INT_END_SECONDARY ; i++) {
+ 		irq_desc[i].status = IRQ_DISABLED;
+ 		irq_desc[i].action = NULL;
+ 		irq_desc[i].depth = 1;
+-		irq_desc[i].handler = &mips_cpu_irq_controller_secondary;
++		irq_desc[i].chip = &mips_cpu_irq_controller_secondary;
+ 	}
+ #if defined(CONFIG_VLYNQ_SUPPORT)
+ 	for ( ; i < irq_base + OHIO_INT_END_VIRTUAL ; i++) {
+ 		irq_desc[i].status = IRQ_DISABLED;
+ 		irq_desc[i].action = NULL;
+ 		irq_desc[i].depth = 1;
+-		irq_desc[i].handler = &mips_cpu_irq_controller_vlynq;
++		irq_desc[i].chip = &mips_cpu_irq_controller_vlynq;
+ 	}
+ #endif /*--- #if defined(CONFIG_VLYNQ_SUPPORT) ---*/
+ 	mips_cpu_irq_base = irq_base;
+--- linux-2.6.19/arch/mips/mips-boards/ohio/ohio_setup.c
++++ linux-2.6.19/arch/mips/mips-boards/ohio/ohio_setup.c
+@@ -25,6 +25,7 @@
+ #include <linux/console.h>
+ #include <linux/serial.h>
+ #include <linux/serial_core.h>
++#include <linux/avm_led_event.h>
+ 
+ #include <asm/cpu.h>
+ #include <asm/bootinfo.h>
+@@ -77,7 +78,7 @@
+ \*------------------------------------------------------------------------------------------*/
+ extern void mips_reboot_setup(void);
+ extern void mips_time_init(void);
+-extern void mips_timer_setup(struct irqaction *irq);
++/* extern void mips_timer_setup(struct irqaction *irq); */ // see mips-boards/generic/time.c:plat_timer_setup()
+ extern void ohio_clk_init(void);
+ 
+ 
+@@ -91,7 +92,7 @@
+ 
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+-static int __init ohio_setup(void) {
++void __init plat_mem_setup(void) {
+ 	ioport_resource.end = 0x7fffffff;
+ 
+     /*--- prom_printf("[ohio_setup]\n"); ---*/
+@@ -107,6 +108,7 @@
+         /*--- printk("%%-:12B:  %-:12B\n", test); ---*/
+     /*--- } ---*/
+ 
++    ohio_pre_init();
+     ohio_reset_init();
+     ohio_clk_init();
+	ohio_serial_init();
+@@ -115,14 +117,12 @@
+     ohio_gpio_init();
+ 
+ 	board_time_init = mips_time_init;
+-	board_timer_setup = mips_timer_setup;
++	/* board_timer_setup = mips_timer_setup; */ // see mips-boards/generic/time.c:plat_timer_setup()
+ 
+ 	mips_reboot_setup();
+-    return 0;
++    return;
+ }
+ 
+-early_initcall(ohio_setup);
+-
+ /*------------------------------------------------------------------------------------------*\
+ \*------------------------------------------------------------------------------------------*/
+ static void __init ohio_serial_init(void) {
+@@ -215,7 +215,7 @@
+     U->lc.Bits.dlab = 0;
+ 
+ 	board_time_init = mips_time_init;
+-	board_timer_setup = mips_timer_setup;
++	/* board_timer_setup = mips_timer_setup; */ // see mips-boards/generic/time.c:plat_timer_setup()
+ 
+     memset((char *)0xA0000000, 0, 4096);  /*--- internal ram loeschen ---*/
+ }
+--- linux-2.6.19/drivers/char/avm_new/Makefile.26
++++ linux-2.6.19/drivers/char/avm_new/Makefile.26
+@@ -83,6 +83,9 @@
+ ifeq ($(CONFIG_AVM_WATCHDOG),y)
+     avm-objs	 += ar7wdt_main.o \
+                     ar7wdt_file.o 
++ifeq ($(CONFIG_MIPS_OHIO),y)
++	avm-objs     += ar7wdt_hw_26.o
++endif
+ ifeq ($(CONFIG_MIPS_UR8),y)
+ 	avm-objs     += ar7wdt_hw_26.o
+ endif
+--- linux-2.6.19/drivers/char/avm_power/we_xilinx.c
++++ linux-2.6.19/drivers/char/avm_power/we_xilinx.c
+@@ -32,7 +32,7 @@
+ #  define avm_gpio_ctrl(pin, mode, dir)	avalanche_gpio_ctrl(pin, mode, dir)
+ #  define avm_gpio_out_bit(pin, value)	avalanche_gpio_out_bit(pin, value)
+ #else
+-# if LINUX_VERSION_CODE == KERNEL_VERSION(2,6,13)
++# if LINUX_VERSION_CODE == KERNEL_VERSION(2,6,19)
+ #if 0
+ #if defined(CONFIG_MIPS_OHIO)
+ #  define AVALANCHE_EMIF_CONTROL_BASE 		    OHIO_EMIF_BASE

@@ -1,0 +1,103 @@
+--- linux-2.6.19/arch/mips/mips-boards/ohio/Makefile
++++ linux-2.6.19/arch/mips/mips-boards/ohio/Makefile
+@@ -31,7 +31,8 @@
+ 								  ohio_gpio.o \
+ 								  ohio_reset.o \
+ 								  ohio_ssi.o \
+-								  ohio_power.o
++								  ohio_power.o \
++								  ur8_clk_emul.o
+ 
+ obj-$(CONFIG_VLYNQ_SUPPORT)    += ohio_vlynq_init.o \
+ 								  ohio_vlynq_irq.o
+--- linux-2.6.19/arch/mips/mips-boards/ohio/ur8_clk_emul.c
++++ linux-2.6.19/arch/mips/mips-boards/ohio/ur8_clk_emul.c
+@@ -0,0 +1,88 @@
++#include <linux/autoconf.h>
++#include <linux/module.h>
++#include <asm/mips-boards/ohio_clk.h>
++#include <asm/mach-ohio/hw_boot.h>
++
++#define PRINTK printk
++
++/*--- #define OHIO_CLK_DEBUG ---*/ 
++#define OHIO_CLK_DEBUG
++
++enum _ur8_avm_clock_id {
++    ur8_avm_clock_id_non        = 0x00,
++    ur8_avm_clock_id_cpu        = 0x01,
++    ur8_avm_clock_id_system     = 0x02,
++    ur8_avm_clock_id_usb        = 0x04,
++    ur8_avm_clock_id_dsp        = 0x08,
++    ur8_avm_clock_id_vbus       = 0x10,
++    ur8_avm_clock_id_peripheral = 0x20,
++    ur8_avm_clock_id_c55x       = 0x40,
++    ur8_avm_clock_id_ephy       = 0x80,
++    ur8_avm_clock_id_pci        = 0x100,
++    ur8_avm_clock_id_tdm        = 0x200
++};
++
++#if defined(OHIO_CLK_DEBUG)
++static const char *ur8_name_clock_id(enum _ur8_avm_clock_id clock_id) {
++    return
++        clock_id == ur8_avm_clock_id_cpu        ? "id_cpu"        :
++        clock_id == ur8_avm_clock_id_system     ? "id_system"     :
++        clock_id == ur8_avm_clock_id_usb        ? "id_usb"        :
++        clock_id == ur8_avm_clock_id_dsp        ? "id_dsp"        :
++        clock_id == ur8_avm_clock_id_vbus       ? "id_vbus"       :
++        clock_id == ur8_avm_clock_id_peripheral ? "id_peripheral" : "unknown";
++}
++
++#define KHZ (1000)
++#define MHZ (1000*1000)
++static inline unsigned int ur8_norm_clock(unsigned int clk, int flag) {
++    if(flag == 0) {
++        return ((clk / MHZ) * MHZ) == clk ? clk / MHZ : ((clk / KHZ) * KHZ) == clk ? clk / KHZ : clk;
++    } 
++    return ((clk / MHZ) * MHZ) == clk ? 'M': ((clk / KHZ) * KHZ) == clk ? 'K' : ' ';
++}
++
++#define DBG_TRC PRINTK
++#else
++#define DBG_TRC(arg...)
++#endif
++
++unsigned int ur8_get_clock(enum _ur8_avm_clock_id clock_id) {
++#if defined(OHIO_CLK_DEBUG)
++    struct _hw_boot *BOOT  = (struct _hw_boot *)OHIO_DEVICE_CONFIG_BASE;
++#endif
++    unsigned int clk = 0;
++    switch(clock_id) {
++        case ur8_avm_clock_id_cpu:
++            clk =  ohio_get_clock(avm_clock_id_cpu);
++            break;
++        case ur8_avm_clock_id_system:
++            clk =  ohio_get_clock(avm_clock_id_system);
++            break;
++        case ur8_avm_clock_id_usb:
++            clk =  ohio_get_clock(avm_clock_id_usb);
++            break;
++        case ur8_avm_clock_id_dsp:
++            clk =  ohio_get_clock(avm_clock_id_dsp);
++            break;
++        case ur8_avm_clock_id_vbus:
++            clk =  ohio_get_clock(avm_clock_id_vbus);
++            break;
++        case ur8_avm_clock_id_peripheral:
++            clk =  ohio_get_clock(avm_clock_id_peripheral);
++            break;
++        case ur8_avm_clock_id_c55x:
++        case ur8_avm_clock_id_ephy:
++        case ur8_avm_clock_id_pci:
++        case ur8_avm_clock_id_tdm:
++        default: 
++            PRINTK(KERN_ERR"ur8_get_clock (emulated on ar7-ohio): unknown id=%d\n", clock_id);
++            break;
++    }
++    DBG_TRC("ur8_get_clock (emulated on ar7-ohio): %s %u %cHz %s\n", ur8_name_clock_id(clock_id), 
++        ur8_norm_clock(clk, 0),
++        ur8_norm_clock(clk, 1),
++        BOOT->hw_boot_config.Bits.mips_async ? "async" : "sync");
++    return clk;
++}
++EXPORT_SYMBOL(ur8_get_clock);

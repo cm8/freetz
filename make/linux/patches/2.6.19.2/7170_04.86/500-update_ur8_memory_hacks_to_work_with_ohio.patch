@@ -1,0 +1,100 @@
+--- linux-2.6.19/include/asm-mips/page.h
++++ linux-2.6.19/include/asm-mips/page.h
+@@ -146,9 +146,11 @@
+ \*------------------------------------------------------------------------------------------*/
+ #if defined(CONFIG_MIPS_UR8)
+ #define pfn_valid(pfn)		((pfn >= (CONFIG_MIPS_UR8_PHY_MEMSTART >> PAGE_SHIFT)) && ((pfn) < max_mapnr))
+-#else /*--- #if defined(CONFIG_MIPS_UR8) ---*/
++#elif defined(CONFIG_MIPS_OHIO)
++#define pfn_valid(pfn)		((pfn >= (CONFIG_MIPS_OHIO_PHY_MEMSTART >> PAGE_SHIFT)) && ((pfn) < max_mapnr))
++#else
+ #define pfn_valid(pfn)		((pfn) < max_mapnr)
+-#endif /*--- #else ---*/ /*--- #if defined(CONFIG_MIPS_UR8) ---*/
++#endif
+ 
+ #elif defined(CONFIG_SPARSEMEM)
+ 
+--- linux-2.6.19/include/linux/mmzone.h
++++ linux-2.6.19/include/linux/mmzone.h
+@@ -647,15 +647,17 @@
+ 
+ static inline int pfn_valid(unsigned long pfn)
+ {
+-#if defined(CONFIG_MIPS)
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_MIPS_OHIO)
+ #if defined(CONFIG_MIPS_UR8)
+     unsigned int ram_start = CONFIG_MIPS_UR8_PHY_MEMSTART;
+-#endif /*--- #if defined(CONFIG_MIPS_UR8) ---*/
++#elif defined(CONFIG_MIPS_OHIO)
++    unsigned int ram_start = CONFIG_MIPS_OHIO_PHY_MEMSTART;
++#endif
+     /*--- Speicher Spar Hack Anfang ---*/
+     if(pfn < (ram_start >> PAGE_SHIFT))
+         return 0;
+     /*--- Speicher Spar Hack Ende ---*/
+-#endif /*--- #if defined(CONFIG_MIPS) ---*/
++#endif /*--- #if defined(CONFIG_MIPS_UR8) || defined(CONFIG_MIPS_OHIO) ---*/
+ 	if (pfn_to_section_nr(pfn) >= NR_MEM_SECTIONS)
+ 		return 0;
+ 	return valid_section(__nr_to_section(pfn_to_section_nr(pfn)));
+@@ -689,10 +691,14 @@
+ #define early_pfn_in_nid(pfn, nid)	(1)
+ #endif
+ 
+-#if defined(CONFIG_MIPS) && defined(CONFIG_MIPS_UR8)
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_MIPS_OHIO)
+ /*--- Speicher Spar Hack Anfang ---*/
+ static inline int _early_pfn_valid(unsigned long pfn) {
++#if defined(CONFIG_MIPS_UR8)
+     unsigned int ram_start = CONFIG_MIPS_UR8_PHY_MEMSTART;
++#elif defined(CONFIG_MIPS_OHIO)
++    unsigned int ram_start = CONFIG_MIPS_OHIO_PHY_MEMSTART;
++#endif
+     /*--- Speicher Spar Hack ---*/
+     if(pfn < (ram_start >> PAGE_SHIFT))
+         return 0;
+@@ -701,7 +707,7 @@
+ 
+ #define early_pfn_valid(pfn)    _early_pfn_valid(pfn)
+ /*--- Speicher Spar Hack Ende ---*/
+-#endif /*--- #if defined(CONFIG_MIPS) && defined(CONFIG_MIPS_UR8) ---*/
++#endif /*--- #if defined(CONFIG_MIPS_UR8) || defined(CONFIG_MIPS_OHIO) ---*/
+ 
+ #ifndef early_pfn_valid
+ #define early_pfn_valid(pfn)	(1)
+--- linux-2.6.19/mm/page_alloc.c
++++ linux-2.6.19/mm/page_alloc.c
+@@ -2457,8 +2457,12 @@
+ 		size =  (end - start) * sizeof(struct page);
+ 		map = alloc_remap(pgdat->node_id, size);
+ 		if (!map) {
+-#if defined(CONFIG_MIPS) && defined(CONFIG_MIPS_UR8)
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_MIPS_OHIO)
++#if defined(CONFIG_MIPS_UR8)
+             unsigned int ram_start = CONFIG_MIPS_UR8_PHY_MEMSTART;
++#elif defined(CONFIG_MIPS_OHIO)
++            unsigned int ram_start = CONFIG_MIPS_OHIO_PHY_MEMSTART;
++#endif 
+             printk(KERN_ERR "[mem_map-hack]: reduce size from %d", size);
+             size = (end - (ram_start >> PAGE_SHIFT)) *  sizeof(struct page);
+             printk(" %d Bytes\n", size);
+--- linux-2.6.19/arch/mips/mips-boards/generic/memory.c
++++ linux-2.6.19/arch/mips/mips-boards/generic/memory.c
+@@ -100,11 +100,17 @@
+ #endif
+ 		flashsize = simple_strtol(flashsize_str, NULL, 0);
+ 	}
++    prom_printf("memsize=%u MByte\n", memsize >> 20);
+     prom_printf("flashsize=%u MByte\n", flashsize >> 20);
+ 
+ 
+ 	memset(mdesc, 0, sizeof(mdesc));
+ 
++#if !defined(CONFIG_MIPS_UR8) 
++#define CONFIG_MIPS_UR8_C55_MEMORY 0
++#define CONFIG_MIPS_UR8_WLAN_MEMORY 0
++#endif /*--- #if !defined(CONFIG_MIPS_UR8)  ---*/
++
+ #if !defined(CONFIG_MIPS_OHIO) && !defined(CONFIG_MIPS_UR8) && !defined(CONFIG_MIPS_AR7) 
+ 	mdesc[0].type = yamon_dontuse;
+ 	mdesc[0].base = 0x00000000;
