@@ -7,7 +7,7 @@ mklibs() {
 	local REAL_GNU_TARGET_NAME=${GNU_TARGET_NAME}-uclibc
 
 	# replace all absolute symlinks with relative ones to make mklibs happy
-	symlinks-abs2rel -r "${FILESYSTEM_MOD_DIR}" / "*.so*"
+	symlinks_abs2rel -r "${FILESYSTEM_MOD_DIR}" / "*.so*"
 
 	rm -rf "${MOD_DIR}/mklibs-progs" "${MOD_DIR}/mklibs-out"
 	mkdir -p "${MOD_DIR}/mklibs-out"

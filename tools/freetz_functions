@@ -1,4 +1,10 @@
-#!/bin/bash
+#!/bin/sh
+
+# do not use the function keyword as this file may be sourced by
+# simpler /bin/sh compatible scripts that only depend on some
+# functions herein, e.g. echo2 and sep2
+# incompatible function definitions do not pose a problem to
+# /bin/sh as long as they are not called by this interpreter
 
 #linkbox_remove <menu-name>
 #removes links within a box on the left
@@ -247,7 +253,7 @@ echoX()
 	shift $((OPTIND-1))
 
 	[ $no_indent ] && indent=
-	echo -e $no_newline "${indent}${bold}${colour}${prefix}$*${uncolour}${unbold}"
+	/bin/echo -e $no_newline "${indent}${bold}${colour}${prefix}$*${uncolour}${unbold}"
 }
 
 # If the verbosity level is undefined, probably this script has been called
@@ -274,6 +280,8 @@ warn1() { [ "$FREETZ_VERBOSITY_LEVEL" -ge 1 ] && warn "$@"; }
 warn2() { [ "$FREETZ_VERBOSITY_LEVEL" -ge 2 ] && warn "$@"; }
 warn3() { [ "$FREETZ_VERBOSITY_LEVEL" -ge 3 ] && warn "$@"; }
 
+# Separator
+sep2() { echo2 -- "----------------------------------------------------------------------"; }
 
 # Error message + exit with specified error code
 error()
@@ -527,13 +535,13 @@ isNeededEntry()
 	[ $# -lt 2 ] && error 1 "isNeededEntry failed, not enough parameters."
 	local neededPattern="$1"; shift
 	local neededEntries=$(getNeededEntries "$@")
-	grep -E -q "$neededPattern" 2>/dev/null <<< "$neededEntries"
+	echo "$neededEntries" | grep -E -q "$neededPattern" 2>/dev/null
 }
 
 #
 # Strips trailing slash if provided
 #
-function stripTrailingSlash() {
+stripTrailingSlash() {
 	local path="$1"
 	[ -n "${path}" -a "${path: -1: 1}" == "/" ] && path="${path: 0: -1}"
 	echo -n "$path"
@@ -542,7 +550,7 @@ function stripTrailingSlash() {
 #
 # Adds trailing slash if missing
 #
-function addTrailingSlash() {
+addTrailingSlash() {
 	local path="$1"
 	[ -n "${path}" -a "${path: -1: 1}" != "/" ] && path="$path/"
 	echo -n "$path"
@@ -553,12 +561,12 @@ function addTrailingSlash() {
 #
 # Dependencies: readlink, realpath, bash (uses bash specific functions).
 #
-function symlinks-abs2rel() {
-	local USAGE="$(
-		echo -e "Usage:\t${FUNCNAME} [-v|-verbose] [-r|-recursive] TARGET_FS_ROOT DIR [MASK], where"
-		echo -e "\t\tTARGET_FS_ROOT is the directory pointing to the root directory of the target filesystem"
-		echo -e "\t\tDIR is the directory within the target filesystem symlinks to be corrected within (absolute path is expected)"
-		echo -e "\t\tMASK optional filename mask, default *"
+symlinks_abs2rel() {
+	local USAGE="$( /bin/echo -e -n \
+		"Usage:\t${FUNCNAME} [-v|-verbose] [-r|-recursive] TARGET_FS_ROOT DIR [MASK], where\n" \
+		"\t\tTARGET_FS_ROOT is the directory pointing to the root directory of the target filesystem\n" \
+		"\t\tDIR is the directory within the target filesystem symlinks to be corrected within " \
+		" (absolute path is expected)\n\t\tMASK optional filename mask, default *\n"
 	)"
 
 	local VERBOSE="echo2"
@@ -637,7 +645,7 @@ join() {
 
 # $1 - file to wrap
 # $2 $3 ... - libraries to preload
-function create_LD_PRELOAD_wrapper() {
+create_LD_PRELOAD_wrapper() {
 	local file_to_wrap="$1"; shift
 	[ -f "${FILESYSTEM_MOD_DIR}${file_to_wrap}" -a -x "${FILESYSTEM_MOD_DIR}${file_to_wrap}" ] || error 1 "${FUNCNAME}: ${file_to_wrap} is expected to exist and be executable"
 	local libraries_to_preload=$(join ':' "$@")
@@ -659,12 +667,12 @@ function create_LD_PRELOAD_wrapper() {
 }
 
 # $1 - number (or mathematical expression) in bytes
-function byte_to_mb() {
+byte_to_mb() {
 	echo $(($1)) | awk '{ printf "%.1f MB", $1 /1024/1024 }'
 }
 
 # $1 - tarball filename
-function is_valid_tarball() {
+is_valid_tarball() {
 	# integrity check by listing the content
 	[ -s "$1" ] && "$TAR" -tf "$1"    >/dev/null 2>&1
 
@@ -677,7 +685,7 @@ function is_valid_tarball() {
 #
 # shamelessly stolen from modfs project
 #
-function supported_brandings() {
+supported_brandings() {
 	local etc_default_PRODUKT_path brandings
 	etc_default_PRODUKT_path=$(find "${FILESYSTEM_MOD_DIR}/etc" -type d -name "default.*" | sed -e "\|${FILESYSTEM_MOD_DIR}/etc/default.[0-9]*$|d")
 	brandings=$(find "${etc_default_PRODUKT_path}" -maxdepth 1 -type d | sed -n -e "s|${etc_default_PRODUKT_path}[/]*||p" | sed -e "/^$/d" | sort -u)
