@@ -7,7 +7,10 @@ S="source/kernel/ref-ohio-04.87/linux-2.6.13"
 
 mymv() {
   mkdir -p "$D/$1"
-  cp -a "$S/$1/$2" "$D/$1/$2" && echo2 "copied file ${D##*/}/$1/$2 from ${S##*/}"
+  if [ -n "$2" ]
+  then cp -a "$S/$1/$2" "$D/$1/$2" && echo2 "copied file ${D##*/}/$1/$2 from ${S##*/}"
+  else cp -a "$S/$1/"* "$D/$1" && echo2 "copied directory ${D##*/}/$1 from ${S##*/}"
+  fi
 }
 
 make 1>/dev/null 2>/dev/null \
@@ -42,6 +45,8 @@ done
 for f in ohio-flash.c
 do mymv "drivers/mtd/maps" "$f"
 done
+
+mymv "drivers/dsl/ur8"
 
 rm -rf "${S%/linux-2.6.13}"
 

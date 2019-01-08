@@ -1,0 +1,446 @@
+--- linux-2.6.19/drivers/Kconfig
++++ linux-2.6.19/drivers/Kconfig
+@@ -80,6 +80,6 @@ source "drivers/dma/Kconfig"
+ 
+ source "drivers/ssi/Kconfig"
+ 
+-source "drivers/dsl/Kconfig"
++source "drivers/dsl/ur8/Kconfig"
+ 
+ endmenu
+--- linux-2.6.19/drivers/Makefile
++++ linux-2.6.19/drivers/Makefile
+@@ -35,7 +35,7 @@ obj-$(CONFIG_I2C)		+= i2c/
+ obj-y				+= media/ ssi/ cbus/
+ obj-$(CONFIG_NUBUS)		+= nubus/
+ obj-$(CONFIG_ATM)		+= atm/
+-obj-$(CONFIG_UR8_DSL)		+= dsl/
++obj-$(CONFIG_UR8_DSL)		+= dsl/ur8/
+ obj-$(CONFIG_PPC_PMAC)		+= macintosh/
+ obj-$(CONFIG_IDE)		+= ide/
+ obj-$(CONFIG_FC4)		+= fc4/
+--- linux-2.6.19/drivers/dsl/ur8/Kconfig
++++ linux-2.6.19/drivers/dsl/ur8/Kconfig
+@@ -6,7 +6,7 @@
+ menu "AVM UR8 DSL support"
+ 
+ config UR8_DSL
+-    depends on MIPS_UR8
++    depends on MIPS_UR8 || MIPS_OHIO
+ 	tristate "AVM UR8 DSL support"       
+     default y
+ #    select TI_DSL
+--- linux-2.6.19/drivers/dsl/ur8/Makefile
++++ linux-2.6.19/drivers/dsl/ur8/Makefile
+@@ -5,7 +5,8 @@ TI_DSL_DRV_DIR = $(TOPDIR)/drivers/dsl/ur8
+ EXTRA_CFLAGS +=	-DPOST_SILICON -DCOMMON_NSP 
+ EXTRA_CFLAGS +=	-DUR8_SAR -g -O2 -DTI_DSL_TASKLET_MODE
+ #EXTRA_CFLAGS +=	-DNO_ACT -DYAMUNA -DCONFIG_LED_MODULE -DDEREGISTER_LED -DBASE_PSP_8X
+-EXTRA_CFLAGS +=	-DNO_ACT -DYAMUNA -DCONFIG_TI_DSL
++#EXTRA_CFLAGS +=	-DNO_ACT -DYAMUNA -DCONFIG_TI_DSL
++EXTRA_CFLAGS +=	-DNO_ACT -DOHIO_SUPPORT -DSAR_OLD -DOLD_SAR -DCONFIG_TI_DSL
+ 
+ ifeq ($(ANNEX),B)
+ EXTRA_CFLAGS +=	-DANNEX_B -DB
+@@ -35,3 +36,7 @@ obj-m += $(ti_dsl_mod_obj).o
+ $(ti_dsl_mod_obj)-objs	:= src/tiToAvmHalWrapper/avalanche_generic_setup.o src/tiToAvmHalWrapper/pal_sysResetCtrl.o src/tiToAvmHalWrapper/avalanche_misc.o src/tiToAvmHalWrapper/avalanche_intc.o src/tiToAvmHalWrapper/pal_cppi4.o src/tiToAvmHalWrapper/pal_cppi4TxRx.o src/ddc/ddc_sar_init.o src/ddc/ddc_sar_txrx.o src/ddc/ddc_txrx.o src/dda/linux/dda_txrx.o src/ddc/ddc_init_close.o  src/dda/linux/dda_init_close.o src/dda/linux/dda_input.o src/ddc/ddc_clear_eoc.o src/ddc/dsl_hal_api.o src/ddc/dsl_hal_csl.o src/ddc/dsl_hal_support.o src/ddc/ddc_common.o src/dda/linux/dda_common.o 
+ 
+ clean-files := src/ddc/ddc_sar_init.o src/ddc/ddc_sar_txrx.o src/ddc/ddc_txrx.o src/dda/linux/dda_txrx.o src/ddc/ddc_init_close.o  src/dda/linux/dda_init_close.o src/dda/linux/dda_input.o src/ddc/ddc_clear_eoc.o src/ddc/dsl_hal_api.o src/ddc/dsl_hal_csl.o src/ddc/dsl_hal_support.o src/ddc/ddc_common.o src/dda/linux/dda_common.o
++
++clean:
++	rm -f .*.o.cmd built-in.o
++	rm -v $(clean-files)
+--- linux-2.6.19/drivers/dsl/ur8/src/avalanche_headers/generic/pal_osBuf_inline.h
++++ linux-2.6.19/drivers/dsl/ur8/src/avalanche_headers/generic/pal_osBuf_inline.h
+@@ -119,10 +119,7 @@ PAL_INLINE PAL_Result PAL_osBufPoolUndefine (Uint32 bufPoolId)
+ 		return PAL_OS_ERROR_INVALID_PARAM;
+ 	}
+ 	
+-    if(kmem_cache_destroy((kmem_cache_t*)bufPoolId) != 0)
+-	{
+-        return PAL_OS_ERROR_OS_SPECIFIC;
+-	}
++    kmem_cache_destroy((kmem_cache_t*)bufPoolId);
+ 
+     return PAL_SOK;
+ }
+--- linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_init_close.c
++++ linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_init_close.c
+@@ -817,7 +817,8 @@
+ 
+   kfree (dev->dev_data);
+ 
+-  shutdown_atm_dev(dev);
++  //unavailable - old 2.4 call?
++  //shutdown_atm_dev(dev);
+ 
+   /*
+    * remove proc entries
+@@ -837,7 +838,9 @@
+ 
+   DDA_dsl_dslmod_sysctl_unregister();
+ 
++#ifdef YAMUNA
+   DDA_dsl_DspImageFree();
++#endif
+ 
+   printk ("AVSAR: Module Removed\n");
+ 
+--- linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_txrx.c
++++ linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_txrx.c
+@@ -681,8 +681,8 @@ int DDA_atm_receive (void *os_dev, int ch, unsigned int packet_size,
+   dgprintf (3, "pushing the skb...\n");
+ 
+   //AV_26
+-  skb->stamp.tv_sec = xtime.tv_sec;
+-  skb->stamp.tv_usec = xtime.tv_nsec;   //Sorry
++  skb->tstamp.off_sec = xtime.tv_sec;
++  skb->tstamp.off_usec = xtime.tv_nsec;   //Sorry
+ 
+   //xadump ((unsigned char *) skb->data, skb->len, 5);
+ 
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_clear_eoc.c
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_clear_eoc.c
+@@ -3,7 +3,7 @@
+ #include "ddc_ti_dsl.h"
+ 
+ 
+-#ifdef YAMUNA
++#if defined(YAMUNA) || defined(OHIO_SUPPORT)
+ #define DSL_PHYS_ADDR   HOST_MEM_V2P
+ #define DSL_PHYS_TO_K1  HOST_MEM_V2P
+ #endif
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_common.c
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_common.c
+@@ -1298,8 +1298,11 @@ int DDC_sar_oam_generation(DDC_DslPriv *priv, int chan, int type, int vpi, int v
+   //DDC_cpsarControl(priv->SarDev,"OamLbTimeout", "Set", &timeout);
+   if (priv->SarDev->state == DDC_OPENED)
+   {
+-    //*((volatile unsigned *)(0xA31302E0 + 4)) = ((priv->sar_freq/1000) * timeout);
++#ifdef SAR_OLD
++    *((volatile unsigned *)(0xA31302E0 + 4)) = ((priv->sar_freq/1000) * timeout);
++#else
+     priv->SarDev->scratchpad_regs->PDSP_CH_RAM[5].PDSP_General_Use[1] = ((priv->sar_freq/1000) * timeout);
++#endif
+   }
+ 
+   /* calculate atm header */
+@@ -1326,7 +1329,7 @@ int DDC_sar_oam_generation(DDC_DslPriv *priv, int chan, int type, int vpi, int v
+     {
+ //printk("oamAtmHdr=%08x\n", oamAtmHdr);
+ 
+-#if 0
++#ifdef SAR_OLD
+       priv->SarDev->scratchpad_regs->AtmHeader[chan] = oamAtmHdr;
+ #else
+       priv->SarDev->scratchpad_regs->PDSP_CH_RAM[chan].AAL5_Tx_State[6] = oamAtmHdr;
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_sar_init.c
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_sar_init.c
+@@ -1780,9 +1780,12 @@ PAL_Result cpsarOamLoopbackConfig(CpsarDDCObj *hDDC, Uint32 OamConfig,
+           hDDC->regs->Host_Mailbox[1] = CorrelationTag;
+ 
+           /* write the LLID */
+-          tmp = &hDDC->scratchpad_regs->PDSP_OAM_RAM.OAM_Config[4];
++          #ifndef SAR_OLD
++            tmp = &hDDC->scratchpad_regs->PDSP_OAM_RAM.OAM_Config[4];
++          #else
++            tmp = &hDDC->regs->PDSP_RAM[3].PDSP_General_Use[8];
++          #endif
+           //printk("tmp value = %08x\n", (unsigned int) tmp);
+-          /*tmp = &hDDC->regs->PDSP_RAM[3].PDSP_General_Use[8];*/
+ 
+           *tmp++ = LLID[0];
+           *tmp++ = LLID[1];
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/dev_host_interface.h
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/dev_host_interface.h
+@@ -958,10 +958,33 @@ typedef struct
+ } DEV_HOST_dspWrSharedTables_t;
+ 
+ 
++#ifndef YAMUNA
++// ----------------------------------------
++// Begin datapump code overlay definitions.
++// ----------------------------------------
++//UR8_MERGE_START_END CQ11516 Tim
++#define DEV_HOST_PAGE_NUM 13   // (CQ11516) number of overlay pages (page 0 + number of overlay pages)
+ 
+ #define MAX_NUM_INIT_STATES 255 // number of states in the DSP state machine
+ 
+ 
++// Never access a struct of this typedef directly.  Always go through the DEV_HOST_olayDpDef_t struct
++typedef struct
++{
++  UINT32 overlayHostAddr;     // source address in host memory
++  UINT32 overlayXferCount;    // number of 32bit words to be transfered
++  UINT32 overlayDspAddr;      // destination address in DSP's PMEM
++} DEV_HOST_olayDpPageDef_t;
++
++
++typedef struct
++{
++  UINT32 overlayStatus;                      // Status of current overlay to DSP PMEM
++  UINT32 overlayNumber;                      // DSP PMEM overlay page number
++  UINT32 overlayState;                       // Indicates whether current state is an overlay state
++  DEV_HOST_olayDpPageDef_t *olayDpPage_p[DEV_HOST_PAGE_NUM]; // Def's for the Pages
++} DEV_HOST_olayDpDef_t;
++#endif
+ 
+ 
+ // -------------------------
+@@ -1046,8 +1069,14 @@ typedef struct
+   UINT8  hecFlag;     // Far end hec flag indication, ADSL1 only
+   UINT8  intlvFlag;   // 1 indicates this bearer is used for ADSL1 interleaved, else 0
+   UINT8  dummy;       // Available for future use
+-  UINT32 hecErrors;   // Num of far end HEC errored ADSL superframes, ADSL1 only
++#ifndef YAMUNA
++  UINT32 hecErrors;   // Num of HEC errored ADSL superframes, valid for ADSL1 only
++  UINT32 lcdErrors;   // Loss of Cell Delineation (within the same connection)
++#endif
+ } DEV_HOST_txAtmStats_t;
++#ifndef YAMUNA
++#define DEV_HOST_usAtmStats_t DEV_HOST_txAtmStats_t
++#endif
+ 
+ // Never access a struct of this typedef directly.  Always go through the DEV_HOST_atmStats_t struct.
+ typedef struct
+@@ -1068,6 +1097,9 @@ typedef struct
+   UINT8  intlvFlag;      // 1 indicates this bearer is used for ADSL1 interleaved, else 0
+   UINT16 dummy;          // Available for future use
+ } DEV_HOST_rxAtmStats_t;
++#ifndef YAMUNA
++#define DEV_HOST_dsAtmStats_t DEV_HOST_rxAtmStats_t
++#endif
+ 
+ 
+ typedef struct
+@@ -1120,6 +1152,89 @@ typedef struct
+ } DEV_HOST_clearEocVarDef_t;
+ 
+ 
++#ifndef YAMUNA
++// -----------------------------------
++// Begin CO profile Definitions.
++// -----------------------------------
++
++/* struct size must be a word size            */
++typedef struct
++{
++
++  SINT16 devCodecRxdf4Coeff[12] ;             // (BOTH) IIR Coefficients
++  SINT16 devCodecTxdf2aCoeff[64] ;            // (BOTH) FIR filter coefficients
++#if defined(OHIO_SUPPORT) && OHIO_SUPPORT != 0
++  SINT16 devCodecTxdf2bCoeff[84] ;            // (BOTH) FIR filter coefficients
++#else
++  SINT16 devCodecTxdf2bCoeff[64] ;            // (BOTH) FIR filter coefficients
++#endif
++  SINT16 devCodecTxdf1Coeff[12] ;             // (BOTH) IIR filter coefficients
++  UINT16 devCodecTxDf2aDen;                   // (BOTH) denominator for IIR filter
++  UINT16 devCodecTxDf2bDen;                   // (BOTH) denominator for IIR filter
++  SINT16 ctrlMsmSpecGain[32];                 // (BOTH)
++
++  SINT16 phyBitaRateNegIntNoTrellis ;         // (BOTH) value to set
++  SINT16 phyBitaRateNegIntTrellis ;           // (BOTH) value to set
++  SINT16 phyBitaRateNegFastNoTrellis ;        // (BOTH) value to set
++  SINT16 phyBitaRateNegFastTrellis ;          // (BOTH) value to set
++  SINT16 phyBitaRsFlag ;                      // (BOTH)
++  SINT16 phyBitaFirstSubChannel ;             // (BOTH)
++  SINT16 phyBitaMaxFineGainBump;              // max fine gain bump
++  SINT16 phyBitaFineGainReduction;            // fine gain reduction
++  SINT16 phyBitaMaxDownstreamPowerCutback;    // max downstream power cutback
++
++  SINT16 phySigTxGainReductionAt0kft;         // upstream power reduction at 0 kft.
++
++  SINT16 phyAgcPgaTarget ;                    // (BOTH) compare value
++
++  UINT16 imsg413TxRate ;                      // (BOTH) Tx rate
++  SINT16 imsg413RsBytesAdjust ;               // (BOTH) subtract value
++  UINT16 imsg413PstringMask ;                 // (POTS) Or'ed into pString[RMSGS1_INDEX][1]
++  SINT16 imsg413UsPilot ;                     // (BOTH)??
++  UINT16 imsg413SkipPhaseOp ;                 // (POTS)
++
++  UINT16 ctrlMsmSensitivity1 ;                // (BOTH) value to set
++  UINT16 ctrlMsmTxPsdShape_f;                 // (BOTH) upstream spectral shaping flag
++
++  UINT16 ovhdAocUsBswapReq_f ;                // (BOTH)value to set
++  UINT16 ovhdAocScanMse_f  ;                  // (BOTH)value to set
++  UINT16 firstMSESettleTime  ;                // First bitswap starts
++  UINT16 mseSettleTime ;                      // Sequential swaps spacing
++
++  UINT16 powerSwapThreshold  ;                // power swap threshold
++  UINT32 maxMSEThreshold ;                    // MSE threshold
++
++  SINT16 phyRevFullFirstBin ;                 //
++  SINT16 phyRevFullLastBin ;                  //
++  SINT16 phyRevFirstBin ;                     //
++  SINT16 phyRevLastBin ;                      //
++  SINT16 phyMedFirstBin ;                     //
++  SINT16 phyMedLastBin ;                      //
++  SINT16 phyMedOptionalLastBin;               // Medley last bin - optional
++
++  SINT16 phyEcDelayAdjustment;                // Echo delay adjustment
++  SINT16 bSwapThresholdUpdate;                // bSwapThresholdUpdate
++  SINT16 phyBitaFastPathExcessFineGainBump;   // Used in phy_bita.c
++  SINT16 phyBitaSkipGapAdjustment;            // Used in phy_bita.c
++  SINT16 usPilotInT1413ModeInMedley;          // To send Upstream Pilot in medley in T1.413 mode.
++
++  UINT32 profileVendorId ;                    // vendor id
++
++} DEV_HOST_coData_t ;
++
++
++typedef struct
++{
++  DEV_HOST_coData_t             * hostProfileBase_p;                    // base address of profile list
++  UINT32                        * dspScratchMem_p0;                     // base address of DSP scratch memory
++  UINT32                        * dspScratchMem_p1;                     // base address of DSP scratch memory
++  UINT32                        * dspScratchMem_p2;                     // base address of DSP scratch memory
++  UINT32                        * dspScratchMem_p3;                     // base address of DSP scratch memory
++  //UR8_MERGE_START_END CQ11922 Tim
++  UINT32                        * dspScratchMem_p4;                     // base address of DSP scratch memory
++} DEV_HOST_profileBase_t ;
++#endif
++
+ 
+ // -----------------------------------
+ // Begin DSP/Host Mailbox Definitions.
+@@ -1616,7 +1731,11 @@ typedef struct
+   DEV_HOST_msg_t                   *atucMsg_p;
+   DEV_HOST_msg_t                   *aturMsg_p;
+   DEV_HOST_dspWrSharedTables_t     *dspWrSharedTables_p;
++#ifndef YAMUNA
++  DEV_HOST_olayDpDef_t             *olayDpParms_p;
++#else
+   void                             *unused1;  // overlay
++#endif
+   DEV_HOST_eocVarDef_t             *eocVar_p;
+   DEV_HOST_clearEocVarDef_t        *clearEocVar_p;
+   DEV_HOST_modemStatsDef_t         *modemStats_p;
+@@ -1626,7 +1745,11 @@ typedef struct
+   DEV_HOST_diagAnlgInputVar_t      *analogInputVar_p;
+   DEV_HOST_diagAnlgOutputVar_t     *analogOutputVar_p;
+   DEV_HOST_hostInterruptMask_t     *hostInterruptMask_p;
++#ifndef YAMUNA
++  DEV_HOST_profileBase_t           *profileList_p;
++#else
+   void                             *unused2;  // profileList_p;
++#endif
+   DEV_HOST_hostInterruptSource_t   *hostInterruptSource_p;
+   DEV_HOST_dspBitSwapDef_t         *dspBitSwapDstrm_p;
+   DEV_HOST_dspBitSwapDef_t         *dspBitSwapUstrm_p;
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_csl.h
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_csl.h
+@@ -366,7 +366,9 @@ enum
+ #define MASK_MAILBOX_INTERRUPTS     BIT0
+ #define MASK_BITFIELD_INTERRUPTS    BIT1
+ #define MASK_HEARTBEAT_INTERRUPTS   BIT2
+-
++#ifndef YAMUNA
++#define MASK_INTR_ALL               (BIT0 | BIT1 | BIT2)
++#endif
+ 
+ 
+ /*******************************************************************************
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_support.c
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_support.c
+@@ -1708,8 +1708,9 @@ unsigned dslhal_support_InterfaceGet(tidsl_t *ptidsl, void *hostPtr)
+ 
+   for (rc=0; rc<IF_SIZE; rc++)
+   {
+-      if (!(rc & 3))
++      if (!(rc & 3)) {
+           dgprintf(6, "\n");
++      }
+       dgprintf(6, "%02X ", (*((char *)hostPtr+rc) & 0xFF));
+   }
+ 
+@@ -2298,10 +2299,10 @@ unsigned dslhal_support_getModemStatistics(tidsl_t *ptidsl)
+       /* Get NCD Errors Stats for both US and DS */
+ #ifndef YAMUNA
+       /* Get NCD Errors Stats for both US and DS */
+-      ptidsl->AppData.dsINCD_error   = dslhal_support_byteSwap32((unsigned int)rxAtm[0].ncdError);
+-      ptidsl->AppData.dsFNCD_error   = dslhal_support_byteSwap32((unsigned int)rxAtm[0].ncdError);
+-      ptidsl->AppData.usINCD_error   = dslhal_support_byteSwap32((unsigned int)txAtm[0].ncdError);
+-      ptidsl->AppData.usFNCD_error   = dslhal_support_byteSwap32((unsigned int)txAtm[0].ncdError);
++      ptidsl->AppData.dsINCD_error   = rxAtm[0].ncdFlag; //dslhal_support_byteSwap32((unsigned int)rxAtm[0].ncdError);
++      ptidsl->AppData.dsFNCD_error   = rxAtm[0].ncdFlag; //dslhal_support_byteSwap32((unsigned int)rxAtm[0].ncdError);
++      ptidsl->AppData.usINCD_error   = txAtm[0].ncdFlag; //dslhal_support_byteSwap32((unsigned int)txAtm[0].ncdError);
++      ptidsl->AppData.usFNCD_error   = txAtm[0].ncdFlag; //dslhal_support_byteSwap32((unsigned int)txAtm[0].ncdError);
+ #else
+       ptidsl->AppData.dsINCD_error   = dslhal_support_byteSwap32((unsigned int)rxAtm[0].ocdErrors);
+       ptidsl->AppData.dsFNCD_error   = dslhal_support_byteSwap32((unsigned int)rxAtm[0].ocdErrors);
+@@ -2926,7 +2927,7 @@ int dslhal_support_hostDspCodeDownload(tidsl_t * ptidsl)
+   unsigned int crc32;
+   unsigned char * image;
+   char *tmp = (char *)DEV_HOST_DSP_OAM_POINTER_LOCATION;
+-#if SWTC
++#if defined(SWTC) && SWTC != 0
+   DEV_HOST_tcHostCommDef_t        TCHostCommDef;
+ #endif
+   DEV_HOST_oamWrNegoParaDef_t     OamWrNegoParaDef;
+@@ -2936,7 +2937,7 @@ int dslhal_support_hostDspCodeDownload(tidsl_t * ptidsl)
+ #ifndef NO_ACT
+   DEV_HOST_consBufDef_t           constDisp;
+ #endif
+-#if CO_PROFILES
++#if defined(CO_PROFILES) && CO_PROFILES != 0
+   DEV_HOST_coData_t               coData;
+ #endif
+   DEV_HOST_olayDpPageDef_t        olayDpPageDef[32];
+@@ -3414,7 +3415,7 @@ int dslhal_support_hostDspCodeDownload(tidsl_t * ptidsl)
+    }
+ 
+   /* table_dsp info */
+-#if SWTC
++#if defined(SWTC) && SWTC != 0
+   dspOamSharedInterface.tcHostComm_p = (DEV_HOST_tcHostCommDef_t *)dslhal_support_byteSwap32((unsigned int)dspOamSharedInterface.tcHostComm_p);
+   rc = dslhal_support_blockRead(&pdspOamSharedInterface->tcHostComm_p,
+                                     &pTCHostCommDef, 4);
+@@ -3512,7 +3513,7 @@ int dslhal_support_hostDspCodeDownload(tidsl_t * ptidsl)
+   }
+ 
+   /* Co Profile Test */
+-#if CO_PROFILES
++#if defined(CO_PROFILES) && CO_PROFILES != 0
+   dspOamSharedInterface.profileList_p = (DEV_HOST_profileBase_t *)dslhal_support_byteSwap32((unsigned int)dspOamSharedInterface.profileList_p);
+   /* Access the profileList Structure */
+   rc = dslhal_support_blockRead((PVOID)dspOamSharedInterface.profileList_p,&profileList, sizeof(DEV_HOST_profileBase_t));
+--- linux-2.6.19/include/linux/atm.h
++++ linux-2.6.19/include/linux/atm.h
+@@ -133,7 +133,7 @@
+ #define ATM_ABR		4
+ 
+ // bk Adding support for the VBR for TI DSL chips
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_UR8_DSL) || defined(CONFIG_UR8_DSL_MODULE)
+ 
+     #define ATM_VBR_NRT    ATM_VBR
+     #define ATM_VBR_RT     5
+@@ -179,7 +179,7 @@ struct atm_trafprm {
+         unsigned int spare     :9;      /* spare bits */ 
+ 
+ // bk Adding support for the VBR for TI DSL chips which support this QoS
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_UR8_DSL) || defined(CONFIG_UR8_DSL_MODULE)
+         unsigned int scr;
+ #endif
+ // end bk
+--- linux-2.6.19/include/linux/atmdev.h
++++ linux-2.6.19/include/linux/atmdev.h
+@@ -109,7 +109,7 @@ struct atm_dev_stats {
+ #endif
+ 
+ /*! NOTE(bk): extensions for TI */
+-#ifdef CONFIG_MIPS_UR8
++#if defined(CONFIG_MIPS_UR8) || defined(CONFIG_UR8_DSL) || defined(CONFIG_UR8_DSL_MODULE)
+ 
+ #define ATM_TXFLUSH     _IOW('a', ATMIOC_SPECIAL+6,int)
+                         /* Flush the device data cache on TI DSL modem */
+@@ -118,7 +118,7 @@ struct atm_dev_stats {
+ #define ATM_DSL_READ_WRITE _IOW('a', ATMIOC_SPECIAL+8,int)
+                         /* read and write commands to TI DSL modem device */
+ 
+-#endif //CONFIG_MIPS_UR8
++#endif
+ //end bk
+ 
+ /*

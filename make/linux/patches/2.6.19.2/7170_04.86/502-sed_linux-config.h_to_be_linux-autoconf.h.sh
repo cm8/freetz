@@ -20,6 +20,9 @@ D="$1/linux-2.6.19"
   do echo "drivers/mtd/maps/$f"
   done
 
+  grep -rl "#include *.linux.config.h" "$D/drivers/dsl/ur8/" \
+  | sed -e "s,^$D/,,"
+
 } | \
 while read f
 do
