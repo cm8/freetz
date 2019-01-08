@@ -1,0 +1,82 @@
+--- linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_common.c
++++ linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_common.c
+@@ -1602,6 +1602,8 @@
+ NEED FN HEADER
+ ************************************************************/
+ #ifdef DEBUG_BUILD
++#define __guDbgLevel 0
++
+ void DDA_dprintf (int uDbgLevel, char *szFmt, ...)
+ {
+     va_list  args;
+--- linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_txrx.c
++++ linux-2.6.19/drivers/dsl/ur8/src/dda/linux/dda_txrx.c
+@@ -129,8 +129,6 @@
+ #endif
+ 
+ 
+-int __guDbgLevel = 0;
+-
+ //static spinlock_t chan_init_lock;
+ 
+ 
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_sar_init.c
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/ddc_sar_init.c
+@@ -235,7 +235,7 @@
+  */
+ static int cpsarInitPdsp(CpsarDDCObj *hDDC)
+ {
+-  unsigned int NumOfEntries,i,IRamAddress,iTmp,FirmwareSize;
++  unsigned int NumOfEntries,i,j,IRamAddress,iTmp,FirmwareSize;
+   unsigned int *FirmwarePtr;
+ 
+   IRamAddress = (unsigned int) &hDDC->regs->PDSP_IRAM[0];
+@@ -251,6 +251,8 @@
+     {
+       FirmwarePtr = (unsigned int *)hDDC->initCfg.firmware;
+       FirmwareSize = hDDC->initCfg.firmwareSize;
++      DDA_printf("%s: Using regular (non-loopback) SAR firmware (size=%d, NumOfEntries=%d)\n",
++        __FUNCTION__, FirmwareSize, FirmwareSize/4);
+     }
+ 
+   /* check firmware size first */
+@@ -270,6 +272,10 @@
+       iTmp=(*((unsigned int *) (IRamAddress+(i*4))));
+       if (iTmp != FirmwarePtr[i])
+     {
++          DDA_printf("%s: progammed/checkread firmware to PDSP starting with offset 0x20:\n", __FUNCTION__);
++          for(j=8;j<=i;j++) {
++            DDA_printf("%08x/%08x ", FirmwarePtr[j], (*((unsigned int *) (IRamAddress+(j*4)))));
++          }
+           return(CPSAR_ERR_PDSP_LOAD_FAIL);
+     }
+     }
+--- linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_csl.h
++++ linux-2.6.19/drivers/dsl/ur8/src/ddc/dsl_hal_csl.h
+@@ -70,7 +70,7 @@
+ 
+ 
+ #ifdef DEBUG_BUILD
+-#define dgprintf dprintf
++#define dgprintf DDA_dprintf
+ #else
+ #define dgprintf(uDbgLevel, szFmt, args...)
+ #endif
+@@ -461,7 +461,7 @@
+ 
+ extern int shim_osStringCmp(const char *s1, const char *s2);
+ 
+-extern void dprintf( int uDbgLevel, char * szFmt, ...);
++extern void DDA_dprintf( int uDbgLevel, char * szFmt, ...);
+ 
+ extern int shim_osLoadFWImage(unsigned char *firmwareImage);
+ extern int shim_osLoadDebugFWImage(unsigned char *debugFirmwareImage);
+@@ -491,7 +491,7 @@
+ 
+ extern int shim_osStringCmp(const char *s1, const char *s2);
+ 
+-extern void dprintf( int uDbgLevel, char * szFmt, ...);
++extern void DDA_dprintf( int uDbgLevel, char * szFmt, ...);
+ 
+ extern int shim_osLoadFWImage(unsigned char *firmwareImage);
+ extern int shim_osLoadDebugFWImage(unsigned char *debugFirmwareImage);
