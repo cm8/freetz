@@ -1,0 +1,72 @@
+The Fritz!Box 7170 ADAM2 / EVA bootloader has init code to
+create new TFFS config on mtd3 and mtd4 partitions from scratch.
+
+This init code will _only_ run if ADAM2 / EVA detects mtd3 and
+mtd4 to be empty.  In theory the init code should write the same
+data to both partitions (TFFS double buffer), but tests here have
+shown that it does not - mtd3 is initialized with variable keys
+but no values of the urlader environment, mtd4 with both.
+
+To empty out mtd3/mtd4 without the kernel.image running, use
+
+
+* Eva console (needs hardware mod to be attached to the serial)
+===============================================================
+
+# CAUTION: This is the same as a factory reset, so export
+#          your settings beforehand if you need to.
+
+Eva_AVM >help
+       Commands   Description
+       --------   -----------
+[..]
+          erase   Erase Flash <mtd>
+[..]
+
+Eva_AVM >erase mtd3
+Eva_AVM >erase mtd4
+Eva_AVM >restart
+
+# After restart Eva_AVM will greet with an additional line of out-
+# put above the version string:
+
+<create new TFFS>
+
+(AVM) EVA Revision: 1.136 Version: 1136
+[..]
+
+
+* or Eva/ADAM2 ftp server (no need for serial console hw mod)
+===============================================================
+
+# CAUTION: This is the same as a factory reset, so export
+#          your settings beforehand if you need to.
+#          Also, FLSH below is _not_ a spelling error.
+
+for i in {1..65536}
+do echo -n -e "\xff\xff\xff\xff"
+done > local_262144_bytes_valued_ff
+
+ftp 192.168.178.1   # login adam2, pw adam2
+binary
+passive
+quote MEDIA FLSH
+put local_262144_bytes_valued_ff mtd3
+put local_262144_bytes_valued_ff mtd4
+quote REBOOT
+bye
+
+# If you need to get mtd3 and mtd4 now, immediately reconnect,
+# before the system starts (these fresh copies are useful for
+# qemu-ar7 ..).
+
+ftp 192.168.178.1   # login adam2, pw adam2
+binary
+passive
+quote MEDIA FLSH
+get mtd2 local_image_of_adam2_bootloader
+get mtd3 local_image_of_fresh_mtd3_tffs
+get mtd4 local_image_of_fresh_mtd4_tffs
+quote REBOOT
+bye
+

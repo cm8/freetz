@@ -1,0 +1,56 @@
+To run 7270v1 image on 7170 hw:
+
+cat <<EOF >.config
+FREETZ_USER_LEVEL_EXPERT=y
+FREETZ_TYPE_7270_V1=y
+FREETZ_TYPE_ALIEN_HARDWARE=y
+FREETZ_TYPE_7170_7270_V1=y
+FREETZ_PACKAGE_LDD=y
+FREETZ_PACKAGE_STRACE=y
+FREETZ_PACKAGE_VERMAGIC=y
+FREETZ_MODULE_dsl_ur8=y
+FREETZ_SECURITY_LEVEL=0
+EOF
+
+make oldnoconfig && make
+
+
+Note that it is experimental and a lot
+of stuff does not work, no WLAN, TEL,
+and so on, since the modules for that
+are not patched yet to work with the
+custom kernel (MIPS32R1).
+
+If you have the image running, but not
+so across some reboots, i.e. the cpmac
+switch is not responding and the link
+is down, then this seems to be a prob-
+lem with updates to TFFS (mtd3, mtd4
+from ADAM2 bootloader perspective).
+
+
+It has not been researched yet, if this
+is a matter of the urlader variables
+table version (@6, @H, @G e.g.), a size
+issue, or another problem.  If this
+happens, don't panic - just factory
+reset the TFFS config space.
+
+See README.create_new_TFFS on how to
+do this using the ADAM2/EVA bootloader.
+Let's call this stage1.
+
+Stage2 is to flash avm stock firmware
+and reboot.  It will write an additional
+table version of the urlader env to
+TFFS config space.
+
+Stage3 is to flash 7270_V1 image again.
+
+As this can be tedious, it does make sense
+to take a snapshot of mtd3 and mtd4 after
+Stage2 using ADAM2 ftp service, see
+README.create_new_TFFS once more.
+
+Restoring a sane state of TFFS config space
+is then easy, be it necessary or not.
