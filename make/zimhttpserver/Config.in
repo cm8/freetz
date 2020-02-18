@@ -1,0 +1,33 @@
+comment "zimhttpserver (not available, needs perl and xz (busybox xz or xz-utils))"
+	depends on !FREETZ_PACKAGE_PERL || (!FREETZ_BUSYBOX_XZ && !FREETZ_PACKAGE_XZ)
+
+config FREETZ_PACKAGE_ZIMHTTPSERVER
+	bool "zimhttpserver"
+	default n
+	depends on FREETZ_PACKAGE_PERL && (FREETZ_BUSYBOX_XZ || FREETZ_PACKAGE_XZ)
+	help
+		Port of zimHttpServer.pl to 32-bit architectures with support for 64-bit file
+		operations by waynepiekarski. The perl script should work on both, big- and
+		little-endian fritz box devices. ZIM files use little-endian format which the
+		script accounts for using unpack('V'). This method reads little-endian values
+		regardless of the machine-endianess. Depends on a working xz decompressor:
+
+		Busybox xz applet may appear to not work (reports "corrupted data"), _but_
+		the error message is misleading. It is a result of an OOM (out of memory)
+		error caused by the compression level of the ZIM file. Workarounds:
+		- ensure box has physical 128MB RAM (7270 or older devices may not work)
+		- add swap space (zram or disk on USB port e. g.)
+		- recompress the ZIM file with a lower compression level
+
+		Additional info on serving zim libraries:
+		-----------------------------------------
+
+		A more comprehensive solution to serve ZIM files is not available through
+		a freetz package yet -afaik-, but can be compiled for mips out-of-freetz.
+		  https://github.com/kiwix/kiwix-tools
+		  https://github.com/kiwix/kiwix-build/tree/mips32r2
+		  https://github.com/kiwix/kiwix-build/blob/mips32r2/kiwixbuild/dependencies/libzim.py
+
+		Expect it to use even more memory than zimhttpserver, although there are non-
+		standard configure_options passable to libzim build to lower mem requirements:
+		  https://github.com/openzim/libzim/blob/master/meson_options.txt
