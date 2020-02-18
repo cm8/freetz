@@ -1,0 +1,76 @@
+#!/bin/bash
+
+[[ -z "$1" ]] && echo "usage: $0 <zimfile> <remove_input?>" && exit 1
+
+FILE="$1"
+OUT="${FILE%.zim}.lc.zim"
+TMP="$1.tmp"
+mkdir -p "$TMP"
+
+MODE="iflag=count_bytes,skip_bytes"
+STAT="status=none"
+
+readnum() {
+  # -e -> read little endian
+  echo $((16#$(xxd -e -g0 -s $1 -l $2 $FILE | while read adr dat asc ; do echo $dat ; done)))
+}
+rint()  { readnum $1 4 ; }
+rlong() { readnum $1 8 ; }
+
+clCntPos=28
+clPtrPos=48
+checksumPos=72
+clCnt=$(rint $clCntPos)
+clPtr=$(rlong $clPtrPos)
+cend=$(rlong $checksumPos)
+
+ptr=$((clPtr + 8*clCnt - 8*1))
+while [[ "$ptr" -ge "$clPtr" ]]
+do
+  cstart=$(rlong $ptr)
+  clen=$((cend - cstart))
+  #echo $cstart $cend $clen
+
+  dd $MODE $STAT if=$FILE count=1 skip=$((cstart)) > $TMP/$cstart
+  dd $MODE $STAT if=$FILE count=$((clen-1)) skip=$((cstart+1)) \
+  | if xxd -p $TMP/$cstart | grep -q "^.4"
+    then unxz | xz -1 >> $TMP/$cstart
+    else cat >> $TMP/$cstart
+    fi
+
+  cend=$cstart
+  ptr=$((ptr - 8*1))
+done
+
+echo "finished reading and recompressing clusters"
+dd $MODE $STAT if=$FILE count=$((clPtr)) > $OUT
+off=$cstart
+
+while read cl
+do
+  echo "appending clusterOffset $off to new clusterList@$cstart for tmp/$cl"
+  printf "%016x\n" $off | fold -w2 | tac | tr -d '\n' | xxd -r -p >> $OUT
+  off=$((off + $(du -b $TMP/$cl | cut -f 1)))
+done < <(ls -1 $TMP | sort -n)
+
+echo "appending data between clusterList and first cluster, usually none"
+off=$(du -b $OUT | cut -f 1)
+dd $MODE if=$FILE count=$((cstart-off)) skip=$off >> $OUT
+
+[[ -n "$2" ]] && rm -v $FILE
+
+echo "appending cluster data blobs"
+cat $(ls -1 $TMP | sort -n | sed -e "s,^,$TMP/,") >> $OUT
+
+sz=$(du -b $OUT | cut -f 1) cp=$(printf "%016x\n" $sz)
+echo "writing new cksumPos: 0x$cp (=$sz)"
+fold -w2 <<<$cp | tac | tr -d '\n' | xxd -r -p | dd oflag=seek_bytes conv=notrunc of=$OUT count=8 seek=72
+
+ck="$(md5sum $OUT)" ck=${ck:0:32}
+echo "appending md5 cksum: $ck"
+xxd -r -p <<<$ck | dd oflag=append conv=notrunc of=$OUT count=16
+
+[[ -n "$2" ]] && mv -v "$OUT" "$FILE"
+
+echo "cleaning up"
+rm -rf $TMP
