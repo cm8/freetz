@@ -1,0 +1,103 @@
+--- zimHttpServer.pl	2020-02-19 09:20:38.370788441 +0100
++++ zimHttpServer.pl	2020-02-19 09:22:35.749545491 +0100
+@@ -12,17 +12,7 @@
+ use Socket;
+ my %article;
+ 
+-my $UNAME=`uname -m`;
+-chomp($UNAME);
+-print "UNAME = [$UNAME]\n";
+-my $XZ;
+-if (-e "./$UNAME/xz") {
+-    $XZ="./$UNAME/xz";
+-    print "Detected $UNAME, using local xz binary at $XZ\n";
+-} else {
+-    print "Using system xz binary\n";
+-    $XZ="xz";
+-}
++my $XZ="xz";
+ 
+ # open «file.zim». For more information see internet «openzim.org»
+ print "Opening ZIM file $ARGV[0]\n";
+@@ -209,12 +199,6 @@
+ 	return $ret;
+ }
+ 
+-# There is no signed little-endian conversion for unpack, so need to use "v" and then this
+-sub uint16_int16 {
+-  my $v = shift;
+-  return ($v & 0x8000) ? -((~$v & 0xffff) + 1) : $v;
+-}
+-
+ # read ARTICLE NUMBER into «file.zim»
+ # load ARTICLE ENTRY that is point by ARTICLE NUMBER POINTER
+ # or load REDIRECT ENTRY
+@@ -232,7 +216,9 @@
+         }
+ 	xseek(\*FILE, $pos,1);
+         
+-	xread(\*FILE, $_, 2); $article{"mimetype"} = uint16_int16(unpack("v"));
++	# use this to read the field with perl versions < 5.10
++	# xread(\*FILE, $_, 2); $article{"mimetype"} = unpack("s", pack("S", unpack("v")));
++	xread(\*FILE, $_, 2); $article{"mimetype"} = unpack("s<");
+ 	xread(\*FILE, $_, 1); $article{"parameter_len"} = unpack("H*");
+ 	xread(\*FILE, $_, 1); $article{"namespace"} = unpack("a");
+ 	xread(\*FILE, $_, 4); $article{"revision"} = unpack("V");
+@@ -308,24 +294,44 @@
+ 	if($cluster{"compression_type"} == 4){
+ 		my $data_compressed;
+ 		xread(\*FILE, $data_compressed, $size);
++
++		# The following line breaks because it includes the absolute path of arg0
++		#my $file = "/tmp/$ARGV[0]_cluster$cluster-pid$$";
+ 		my $file = "/tmp/$$-cluster-$cluster";
+-# The following line breaks because it includes the absolute path of arg0
+-#		my $file = "/tmp/$ARGV[0]_cluster$cluster-pid$$";
++
+ 		open(DATA, ">$file.xz");
+ 		print DATA $data_compressed;
+ 		close(DATA);
+-		`$XZ -d -f $file.xz`;
+-		open(DATA, "$file");
+-#	my $blob1;
+-#	xread(DATA, $blob1, 4);
+-#	my $blob_count = int($blob1/4);
+-		seek(DATA, $blob*4, 0);
+-		read(DATA, $_, 4); my $posStart = unpack("V");
+-		read(DATA, $_, 4); my $posEnd = unpack("V");
+-		seek(DATA, $posStart, 0);
+-		read(DATA, $ret, $posEnd-$posStart);
++
++		open(DATA, "-|", "$XZ -d -c $file.xz");
++
++		my $_sz = 4096;
++		my $px = $blob * 4;
++		my $p = 0;
++		$p += sysread(DATA, $_, ($px-$p)<$_sz?($px-$p):$_sz), while $p < $px;
++
++		$px += 4;
++		$p += sysread(DATA, $_, 4);
++		my $posStart = unpack("V");
++
++		$px += 4;
++		$p += sysread(DATA, $_, 4);
++		my $posEnd = unpack("V");
++
++		$px += ($posStart - $px);
++		$p += sysread(DATA, $_, ($px-$p)<$_sz?($px-$p):$_sz), while $p < $px;
++
++		$ret = "x" x (124*1024);
++		$ret = "";
++		$px += ($posEnd - $posStart);
++		while( $p < $px ) {
++			$p += sysread(DATA, $_, ($px-$p)<$_sz?($px-$p):$_sz);
++			$ret .= $_;
++		}
++
+ 		close(DATA);
+-		`rm $file`;
++		`rm $file.xz`;
++
+ 		return $ret;
+         } elsif ($cluster{"compression_type"} == 1) {
+ 		my $data;
