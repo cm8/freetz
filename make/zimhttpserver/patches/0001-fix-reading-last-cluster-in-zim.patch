@@ -1,0 +1,23 @@
+--- zimHttpServer.pl	2020-02-19 09:19:15.819662786 +0100
++++ zimHttpServer.pl	2020-02-19 09:20:38.370788441 +0100
+@@ -86,6 +86,11 @@
+ xread(\*FILE, $_, 4); $header{"layoutPage"} = unpack("V");
+ xread(\*FILE, $_, 8); $header{"checksumPos"} = unpack("H*");
+ 
++my @cksumpos;
++xseek(\*FILE, -8, 1);
++xread(\*FILE, $_, 4); $cksumpos[1] = unpack("V");
++xread(\*FILE, $_, 4); $cksumpos[0] = unpack("V");
++
+ # Check that none of the *PtrPos values exceed 32-bits
+ die "urlPtrPos exceeds 64-bit, cannot run on 32-bit machine",     if $header{"zero1"} != 0;
+ die "titlePtrPos exceeds 64-bit, cannot run on 32-bit machine",   if $header{"zero2"} != 0;
+@@ -255,7 +260,7 @@
+ sub cluster_pointer{
+ # cluster pointer list
+ 	my $cluster = shift;
+-	return $header{"checksumPos"}, if $cluster >= $header{"clusterCount"}; # die "Number of cluster exceed maximun\n"
++	return @cksumpos, if $cluster >= $header{"clusterCount"}; # die "Number of cluster exceed maximun\n"
+ 	my $pos = $header{"clusterPtrPos"};
+ 	$pos += $cluster*8;
+ 	xseek(\*FILE, $pos,0);
