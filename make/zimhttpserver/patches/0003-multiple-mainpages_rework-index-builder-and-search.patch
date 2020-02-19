@@ -1,0 +1,213 @@
+--- zimHttpServer.pl	2020-02-19 09:32:54.763437200 +0100
++++ zimHttpServer.pl	2020-02-19 09:35:53.302931700 +0100
+@@ -97,54 +97,28 @@
+ # Create the index files if they do not exist yet
+ my $file = $ARGV[0];
+ $file =~ s/zim$/index/;
+-my $checkindex = $file.".z";
+-unless(-e $checkindex){
+-    print "Did not find $checkindex file, so will regenerate them all for a-z\n";
+-    # Open up 26 index files for writing
+-    $|=1;
+-    my @indexhandles;
+-    for(my $i=0; $i<26; $i++)
+-    {
+-        # localize the file glob, so FILE is unique to the inner loop.
+-        local *FILE;
+-        my $ch = pack("c",$i+97); # a==97
+-        my $filename = "$file.$ch";
+-        open(FILE, ">$filename") || die;
+-        print "Opening file $filename for writing\n";
+-        # push the typeglobe to the end of the array
+-        push(@indexhandles, *FILE);
+-    }
+-    
+-    print "Making index files $file.a-z\n           /$header{articleCount}";
++unless(-e $file){
++    print "Did not find $file, so will regenerate\n";
++    open(IDX, ">$file");
++
++    print STDERR "Making index file $file\n           /$header{articleCount}";
+     for(my $number = 0; $number<$header{"articleCount"};$number++){
+         &entry($number);
+-#	&entry(title_pointer($number));
+-        my $alpha = $article{url};
+-        $alpha =~ /[A-Za-z]/;
+-        my $result = $&;
+-        my $firstlower = lc($result);
+-        my $first = unpack("c",$firstlower);
+-        my $ofs = $first-97; # a==97
+-        my $idx = $indexhandles[$ofs];
+-        
+-#       print "Converted $article{url} into index [$firstlower = $ofs]\n";
+-        
+         if ($article{namespace} ne "A") {
+ #           print "Ignoring $article{url} since it is not an A article!\n";
+         } else {
+-            print $idx "/$article{namespace}/$article{url}\n";
++            my $t = $article{url};
++            $t =~ s#_# #g;
++            print IDX "$t\n";
+         }
+-        print "\r$number" unless $number%10000;
++        print STDERR "\r$number" unless $number%10000;
+     }
++
++    close(IDX);
+     print "\n";
+     $|=0;
+-    
+-    foreach $file (@indexhandles)
+-    {
+-        close $file;
+-    }
+ }
+-print "Found all index files $checkindex\n";
++print "Found index file $file\n";
+ 
+ 
+ sub get_null_string {
+@@ -361,11 +333,51 @@
+ 	}
+ }
+ 
+-
+ # search url into «file.zim»
+-# return DATA
+-sub output_article{
+-	my $url = shift ;
++sub output_search{
++	my $url = shift;
++	%article = ();
++	$article{url}="pattern=$url";
++	$article{namespace}="SEARCH";
++	return "", unless $url =~ /^\/A/;
++#	($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
++	$url =~ s#/A/##;
++	$url =~ s#[^A-Za-z .]##;
++
++	# search a-z index
++	print "Searching for [$url] from a-z fast index file $file\n";
++	my $message = "<html><body>\n<meta http-equiv=Content-Type content=\"text/html; charset=utf-8\">\n";
++	my $count = 0;
++	my $limit = 1000;
++	open(IDX, "-|", "grep -i -w \"$url\" \"$file\"");
++	while(<IDX>){
++		chop;
++		s# #_#g;
++		$message .= "<a href='$_'>$_</a><br/>\n";
++		$count = $count + 1;
++		last if $count eq $limit;
++	}
++	close(IDX);
++	print "Completed search for [$url] with $count results from index file $file\n";
++	if($count < $limit){
++	  $message .= "<br/>Found $count results for [$url] search\n";
++	} else {
++	  $message .= "<br/>Search may have returned more than $limit results for [$url], ";
++	  $message .= "please use a more specific term.\n";
++	}
++	$message .= "<br/><br/></body></html>\n";
++	# Find text/html in the mime array, we need to return this as the Content-Type
++	use List::Util qw(first);
++	$article{mimetype} = first { $mime[$_] eq 'text/html' } 0..$#mime;
++	# Alternative way that is experimental
++	# $article{mimetype} = grep { $mime[$_] ~~ "text/html" } 0 .. $#mime;
++
++	return $message;
++}
++
++# find article number
++sub find_articlenum{
++	my $url = shift;
+ 	my $articleNumberAbove = $header{"articleCount"};
+ 	my $articleNumberBelow = 0;
+ 	my $articleNumber;
+@@ -380,48 +387,15 @@
+ 			last;
+ 		}
+ 		if($articleNumberAbove < $articleNumberBelow){
+-			%article = ();
+-			$article{url}="pattern=$url";
+-			$article{namespace}="SEARCH";
+-			return "", unless $url =~ /^\/A/;
+-#			($url) = grep {length($_)>1} split(/[\/\.\s]/, $url);
+-			$url =~ s#/A/##;
+-
+-			# search a-z index
+-
+-                        # pattern=/A/
+-                        my $alpha = $article{url};
+-			$alpha =~ s#pattern=/A/##; # Strip off the search query text
+-                        $alpha =~ /[A-Za-z]/; # Find the first A-Za-z character and ignore everything else
+-                        my $result = $&; # This is needed to extract out the value, $alpha has not been changed
+-                        my $firstlower = lc($result);
+-
+-			print "Searching for [$url] from a-z fast index file $file.$firstlower\n";
+-			my $message = "<html><body>\n" ;
+-                        my $result = "";
+-                        my $count = 0;
+-			open(INDEX, "$file.$firstlower");
+-			while(<INDEX>){
+-				if(/$url/i){
+-					chop;
+-					$result .= "<a href='$_'>$_</a><br/>\n";
+-                                        $count = $count + 1;
+-				}
+-			}
+-                        print "Completed search for [$url] with $count results from a-z fast index file $file.$firstlower\n";
+-                        $message .= "<meta http-equiv=Content-Type content=\"text/html; charset=utf-8\">\n";
+-                        $message .= "Found $count results for [$url] search<br/>\n";
+-                        $message .= $result;
+-			$message .= "</body></html>\n";
+-                        # Find text/html in the mime array, we need to return this as the Content-Type
+-                        use List::Util qw(first);
+-                        $article{mimetype} = first { $mime[$_] eq 'text/html' } 0..$#mime;
+-                        # Alternative way that is experimental
+-                        # $article{mimetype} = grep { $mime[$_] ~~ "text/html" } 0 .. $#mime;
+-			return $message;
++			return -1;
+ 		}
+ 	}
+-	return &output_articleNumber($articleNumber);
++	return $articleNumber;
++}
++
++# return DATA
++sub output_article{
++	return &output_articleNumber(shift);
+ }
+ 
+ # only for debug; program don't need it
+@@ -478,12 +452,25 @@
+ # Request-Line Request HTTP-message
+ # ("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT", "$token+");
+ 		my $url = $1;
+-		$url =~ s/%(..)/chr(hex($1))/eg;
+-		$url = "/A/Wikipedia.html", if $url eq "/";
+-		$url = "/-/favicon", if $url eq "/favicon.ico";
+-#		$url =~ s#(/.*?/.*?)$#$1#;
+-		$url = "/A$url", unless $url =~ "/.*/";  # for search
+-		my $message_body  = &output_article($url);
++		my $n = -1;
++		if($url eq "/"){
++			my @idx = ("index", "mainpage", "main_page", "__main_page__", "Mainpage", "Wikipedia");
++			my @suf = ("", ".htm", ".html");
++			for my $i (0 .. $#idx){
++				for my $s (0 .. $#suf){
++					if ($n<0){
++						$url = "/A/$idx[$i]$suf[$s]";
++						$n = &find_articlenum($url);
++					}
++				}
++			}
++		}else{
++			$url =~ s/%(..)/chr(hex($1))/eg;
++			$url = "/-/favicon", if $url eq "/favicon.ico";
++			$url = "/A$url", unless $url =~ "^/+[-AIM]*/";
++			$n = &find_articlenum($url);
++		}
++		my $message_body = ($n<0)?&output_search($url):&output_article($n);
+ 		my $message_body_length = length($message_body);
+ 		my $message_body_type = $mime[$article{"mimetype"}];
+ 
