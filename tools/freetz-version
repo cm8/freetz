@@ -38,7 +38,7 @@ github_commit_url() {
 
 # check for git and a git repo
 if head_id_long=$(git_hash @ 2>/dev/null); then
-	local_branch=$(git_branch @)
+	local_branch=$(git_branch @ | tr "/" "_")
 
 	# check for uncommitted changes
 	#
