@@ -1,0 +1,30 @@
+--- /dev/null	2020-02-22 16:58:05.621268905 +0100
++++ Makefile	2020-02-23 18:06:47.768736800 +0100
+@@ -0,0 +1,27 @@
++L=luabit32
++
++SO=lib$(L).so.1.0.0
++SM=lib$(L).so.1
++S=lib$(L).so
++A=lib$(L).a
++
++_CFLAGS   = $(CFLAGS) -Ic-api
++SO_CFLAGS  = $(_CFLAGS) -fPIC
++SO_LDFLAGS = $(LD_FLAGS) -shared
++SO_LIBS    = -ldl
++
++.NOTPARALLEL:
++all: $(SO) $(A)
++
++$(SO): lbitlib.c
++	$(CC) $(SO_CFLAGS) -c $<
++	$(CC) $(SO_LDFLAGS) -o $@ $(<:%.c=%.o) $(SO_LIBS)
++	ln -sf $@ $(SM)
++	ln -sf $(SM) $(S)
++
++$(A): lbitlib.c
++	$(CC) $(_CFLAGS) -c $<
++	$(AR) $@ $(<:%.c=%.o)
++
++clean:
++	$(RM) lbitlib.o lib$(L).*

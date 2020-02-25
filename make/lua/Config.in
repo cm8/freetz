@@ -39,6 +39,14 @@ config FREETZ_PACKAGE_LUA
 		result is a fast language engine with small footprint, making it ideal
 		in embedded systems too.
 
+config FREETZ_PACKAGE_LUABIT32
+	bool "Build with luabit32 module"
+	depends on FREETZ_PACKAGE_LUA
+	default n
+	select FREETZ_LIB_libluabit32
+	help
+		Builds luabit32 module.
+
 config FREETZ_PACKAGE_LUA_READLINE
 	bool "Build with readline support"
 	depends on FREETZ_PACKAGE_LUA
