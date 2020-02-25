@@ -1,0 +1,25 @@
+--- configure.ac	2020-02-24 08:25:16.071614969 +0100
++++ configure.ac	2020-02-24 08:41:41.885777123 +0100
+@@ -175,8 +175,20 @@
+ 
+ 
+ ## Lua
+-AX_PROG_LUA(5.1, 5.4)
+-AX_LUA_HEADERS
++AC_SUBST([LUA_VERSION], [5.1])
++AC_SUBST([LUA_SHORT_VERSION], [5])
++AC_SUBST([LUA_PLATFORM], ['unknown'])
++AC_SUBST([LUA_PREFIX], ['${prefix}'])
++AC_SUBST([LUA_EXEC_PREFIX], ['${exec_prefix}'])
++AC_SUBST([luadir], [\${LUA_PREFIX}/share/lua])
++AC_SUBST([pkgluadir], [\${luadir}/$PACKAGE])
++AC_SUBST([luaexecdir], [\${LUA_EXEC_PREFIX}/lib/lua])
++AC_SUBST([pkgluaexecdir], [\${luaexecdir}/$PACKAGE])
++dnl Make LUA a precious variable.
++AC_ARG_VAR([LUA], [The Lua interpreter, e.g. /usr/bin/lua5.1])
++dnl Make LUA_INCLUDE a precious variable.
++AC_ARG_VAR([LUA_INCLUDE], [The Lua includes, e.g. -I/usr/include/lua5.1])
++
+ AC_PATH_PROG([SPECL], [specl], [:])
+ 
+ ## Perl

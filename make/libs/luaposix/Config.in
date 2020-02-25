@@ -1,0 +1,6 @@
+config FREETZ_LIB_libluaposix
+	bool "libluaposix"
+	depends on FREETZ_LIB_libluabit32
+	default n
+	help
+		libluaposix adds posix c-bindings to the lua interpreter
