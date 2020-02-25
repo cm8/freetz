@@ -1,0 +1,8 @@
+config FREETZ_LIB_libluastruct
+	bool "struct.lua"
+	default n
+	help
+		require('struct') imports unpack() / pack() functions
+		a lua script uses these to read little- or big-endian
+		encoded 16/32/64 bit values, signed or unsigned, from
+		a byte string (i.e. a string variable in lua)

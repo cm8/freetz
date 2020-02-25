@@ -111,6 +111,13 @@ source make/netpbm/Config.in.libs
 
 endmenu ### "Graphics & fonts"
 
+menu "LUA"
+depends on FREETZ_PACKAGE_LUA
+
+source make/libs/luastruct/Config.in
+
+endmenu ### "LUA"
+
 menu "Multi precision arithmetic libs"
 
 source make/libs/gmp/Config.in
