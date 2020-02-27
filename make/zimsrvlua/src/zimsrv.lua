@@ -155,8 +155,8 @@ function Zim:getBlobXz(bn, cs)
 end
 
 function Zim:getBlobPlain(bn, f)
-    local f, cat, pos, sz = f or self.f,
-    function (sz, o)
+    local f, pos, sz = f or self.f
+    local cat = function (sz, o)
         local buf = ""
         while sz
         do sz = 0 < sz and sz - #buf or nil
@@ -207,7 +207,7 @@ end
 
 function Zim:seekClusterPtr(n)
     local f, h = self.f, self.h
-    local c, e, pos, sz = h.clusterCount, string.format
+    local c, pos, sz = h.clusterCount
 
     if self:seek(h.clusterPtrPos + 8*n, "cluster", n, c)
     then pos = up("<L", f:read(8))
@@ -220,7 +220,7 @@ end
 
 function Zim:seekTitlePtr(n)
     local f, h = self.f, self.h
-    local c, e, i = h.articleCount, string.format
+    local c, i = h.articleCount
 
     if self:seek(h.titlePtrPos + 4*n, "article", n, c)
     then i = up("<L", f:read(4))
@@ -232,7 +232,7 @@ end
 
 function Zim:seekUrlPtr(n)
     local f, h = self.f, self.h
-    local c, e, pos, sz = h.articleCount, string.format
+    local c, pos, sz = h.articleCount
 
     if self:seek(h.urlPtrPos + 8*n, "article", n, c)
     then pos = up("<L", f:read(8))
@@ -255,7 +255,7 @@ function Zim:readUntilZero()
     f:seek("cur", x-bs)
     r[#r] = r[#r]:sub(1, x-1)
 
-    return #r>1 and table.concat(r) or r[1]
+    return #r > 1 and table.concat(r) or r[1]
 end
 
 function Zim:readEntry(n)
@@ -320,7 +320,7 @@ function Zim:findMainPageNum()
     local n, a = self.h.mainPage
 
     if n ~= 0xffffffff
-    then return self:readEntry(n)
+    then return n, self:readEntry(n)
     end
 
     for _, w in ipairs({"index", "mainpage", "wikipedia"})
@@ -351,7 +351,7 @@ function Zim:outputArticleOrEntry(n, a, o)
     o:write(
       "HTTP/1.1 200 OK\n",
       "Content-Type: ", self.m:get(a.mimetype), "\n",
-      "Content-Length: ", sz, "\n\n",
+      "Content-Length: ", sz, "\n\n"
     )
     w(sz, o)
 
@@ -412,7 +412,7 @@ function main()
     --local n, a = z:findEntryNum("/A/MyArticleTitle")
     --if n
     --then z:printHeader(a)
-    --     z:outputArticleOrEntry(n, a) --or n exclusively
+    --     z:outputArticleOrEntry(n, a) --only n mandatory
     --end
 
     local q, udec, oA, oS = (
