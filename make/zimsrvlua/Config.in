@@ -1,0 +1,34 @@
+comment "zimsrvlua (not available, needs xz (busybox xz or xz-utils))"
+	depends on !FREETZ_BUSYBOX_XZ && !FREETZ_PACKAGE_XZ
+
+config FREETZ_PACKAGE_ZIMSRVLUA
+	bool "zimsrvlua"
+	default n
+	depends on FREETZ_BUSYBOX_XZ || FREETZ_PACKAGE_XZ
+	help
+		Port of zimHttpServer.pl to the lua scripting language.
+
+		Depends on a working xz decompressor:
+
+		Busybox xz applet may appear to not work (reports "corrupted data"), _but_
+		the error message is misleading. It is a result of an OOM (out of memory)
+		error caused by the compression level of the ZIM file. Workarounds:
+		- ensure box has physical 128MB RAM (7270 or older devices may not work)
+		- add swap space (zram or disk on USB port e. g.)
+		- recompress the ZIM file with a lower compression level
+
+choice
+	depends on FREETZ_PACKAGE_ZIMSRVLUA
+	prompt "Linkage"
+	default FREETZ_PACKAGE_ZIMSRVLUA_STATIC
+
+	config FREETZ_PACKAGE_ZIMSRVLUA_STATIC
+		bool "static, combine interpreter into zimsrvlua at compile time"
+
+	comment "dynamic (not available, needs lua, luaposix, luastruct)"
+		depends on !FREETZ_LIB_libluaposix || !FREETZ_LIB_libluastruct
+
+	config FREETZ_PACKAGE_ZIMSRVLUA_DYNAMIC
+		bool "dynamic, lua interpreter needed on target system at runtime"
+		depends on FREETZ_LIB_libluaposix && FREETZ_LIB_libluastruct
+endchoice
