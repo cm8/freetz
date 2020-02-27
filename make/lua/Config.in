@@ -39,6 +39,26 @@ config FREETZ_PACKAGE_LUA
 		result is a fast language engine with small footprint, making it ideal
 		in embedded systems too.
 
+config FREETZ_PACKAGE_LUASTRUCT
+	bool "Build with luastruct module"
+	depends on FREETZ_PACKAGE_LUA
+	default n
+	select FREETZ_LIB_libluastruct
+	help
+		Builds luastruct module.
+
+choice
+	depends on FREETZ_PACKAGE_LUASTRUCT
+	prompt "Version"
+	default FREETZ_PACKAGE_LUASTRUCT_VERSION_LATEST_TESTED
+
+	config FREETZ_PACKAGE_LUASTRUCT_VERSION_LATEST_TESTED
+		bool "latest tested"
+
+	config FREETZ_PACKAGE_LUASTRUCT_VERSION_LATEST_GIT
+		bool "latest git revision"
+endchoice
+
 config FREETZ_PACKAGE_LUA_READLINE
 	bool "Build with readline support"
 	depends on FREETZ_PACKAGE_LUA
