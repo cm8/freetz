@@ -120,7 +120,8 @@ function Zim:createIndexSimple(zi)
 end
 
 function Zim:getBlobXz(bn, cs)
-    local f, x, child, rd, wr = self.f, require("posix")
+    local f, x, child, rd, wr = self.f, require("posix.unistd")
+    x.wait = require("posix.sys.wait").wait
 
     rd, wr = x.pipe()
     if rd
