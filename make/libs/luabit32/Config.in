@@ -1,0 +1,6 @@
+config FREETZ_LIB_libluabit32
+	bool "libluabit32"
+	default n
+	help
+		require('bit32') adds bit manipulation functions to
+		the lua interpreter, backport from lua5.2 for lua5.1

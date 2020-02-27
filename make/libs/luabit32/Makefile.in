@@ -1,0 +1,3 @@
+ifeq ($(strip $(FREETZ_LIB_libluabit32)),y)
+LIBS+=luabit32
+endif

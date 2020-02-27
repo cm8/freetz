@@ -114,6 +114,8 @@ endmenu ### "Graphics & fonts"
 menu "LUA"
 depends on FREETZ_PACKAGE_LUA
 
+source make/libs/luabit32/Config.in
+source make/libs/luaposix/Config.in
 source make/libs/luastruct/Config.in
 
 endmenu ### "LUA"

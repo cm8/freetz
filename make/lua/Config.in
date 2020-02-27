@@ -39,6 +39,27 @@ config FREETZ_PACKAGE_LUA
 		result is a fast language engine with small footprint, making it ideal
 		in embedded systems too.
 
+config FREETZ_PACKAGE_LUABIT32
+	bool "Build with luabit32 module"
+	depends on FREETZ_PACKAGE_LUA
+	default n
+	select FREETZ_LIB_libluabit32
+	help
+		Builds luabit32 module.
+
+comment "Build with luaposix module (needs luabit32 module)"
+	depends on FREETZ_PACKAGE_LUA && !FREETZ_PACKAGE_LUABIT32
+
+config FREETZ_PACKAGE_LUAPOSIX
+	bool "Build with luaposix module"
+	depends on FREETZ_PACKAGE_LUABIT32
+	default n
+	select FREETZ_LIB_libluaposix
+	help
+		Builds luaposix module. It provides c-bindings to posix functions
+		supported by the underlying OS, most notably fork, pipe and socket
+		may be employed in lua scripts after calling require('posix')
+
 config FREETZ_PACKAGE_LUASTRUCT
 	bool "Build with luastruct module"
 	depends on FREETZ_PACKAGE_LUA
