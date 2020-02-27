@@ -1,0 +1,9 @@
+comment "zimrecompress (not available, needs xz (busybox xz or xz-utils))"
+	depends on !FREETZ_BUSYBOX_XZ && !FREETZ_PACKAGE_XZ
+
+config FREETZ_PACKAGE_ZIMRECOMPRESS
+	bool "zimrecompress"
+	default n
+	depends on FREETZ_BUSYBOX_XZ || FREETZ_PACKAGE_XZ
+	help
+		A bash script to recompress ZIM files using a lower compression level.
