@@ -397,10 +397,11 @@ function Zim:outputSearch(q, o)
     r[2] = "<ul>"..r[2]:format(n, lmt).."</ul>"
     r[#r+1] = "</body></html>"
 
+    r = table.concat(r, "\n")
     o:write(
       "HTTP/1.1 200 OK\n",
       "Content-Type: text/html; charset=utf-8\n",
-      "Content-Length: ", #r, "\n\n", table.concat(r, "\n")
+      "Content-Length: ", #r, "\n\n", r
     )
 end
 
