@@ -6,16 +6,33 @@ config FREETZ_PACKAGE_ZIMSRVLUA
 	default n
 	depends on FREETZ_BUSYBOX_XZ || FREETZ_PACKAGE_XZ
 	help
-		Port of zimHttpServer.pl to the lua scripting language.
+		Rewrite/port of zimHttpServer.pl to the lua script language,
+		zimsrvlua can open, index and read blobs from zim files
 
-		Depends on a working xz decompressor:
+		arguments are
+		(1) zim file to open (if non given <progname>.zim is tried)
+		(2) a path into the zim file (articles start with '/A/')
 
-		Busybox xz applet may appear to not work (reports "corrupted data"), _but_
-		the error message is misleading. It is a result of an OOM (out of memory)
-		error caused by the compression level of the ZIM file. Workarounds:
-		- ensure box has physical 128MB RAM (7270 or older devices may not work)
-		- add swap space (zram or disk on USB port e. g.)
+		QUERY_STRING and ZIM_FILE from the OS env precede (1), (2):
+		-------------------------------------------------------------
+
+		if QUERY_STRING is properly set by a reverse proxying daemon,
+		such as busybox httpd, e.g. with a config line of
+
+		P:/:http://somesrv:7744/cgi-bin/zimsrvlua?/
+
+		then zimsrvlua on somesrv can serve zim content seamlessly to
+		a webbrowser client
+
+		zimsrvlua depends on a working xz decompressor:
+		-------------------------------------------------------------
+		Busybox xz may appear to not work (reports "corrupted data"),
+		_but_ the error message is misleading.  It is a result of an
+		OOM (out of memory) error caused by the compression level of
+		the ZIM file. Workarounds are:
+		- ensure box has physical 128MB RAM (7270+older may not work)
 		- recompress the ZIM file with a lower compression level
+		- add swap space (zram or disk on USB port e.g.)
 
 choice
 	depends on FREETZ_PACKAGE_ZIMSRVLUA
