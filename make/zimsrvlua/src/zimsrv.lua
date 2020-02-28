@@ -111,7 +111,7 @@ function Zim:createIndexSimple(zi)
     for n = 0, c-1
     do a = self:readEntry(n)
        if a.namespace == "A"
-       then self.i:write(a.url:gsub("_", " "), "\n")
+       then self.i:write(a.url, "\n")
        else io.stderr:write("INFO: Entry in namespace ", a.namespace,
                             " excluded from index: ", a.url, "\n")
        end
@@ -364,7 +364,7 @@ function Zim:outputSearch(q, o)
     else return
     end
 
-    local r, n, ipat, lmt = {}, 0,
+    local r, n, t, ipat, lmt = {}, 0, '<a href="/%s">%s</a><br/>',
     function (p) return p:gsub("%w",
         function (u) return string.format("[%s%s]", u:lower(), u:upper()) end)
     end
@@ -385,7 +385,7 @@ function Zim:outputSearch(q, o)
             then break
             end
             if l:match(q)
-            then r[#r+1] = "<a href=\""..l:gsub(" ", "_").."\">"..l.."</a><br/>"
+            then r[#r+1] = t:format(l, l:gsub("_", " "))
                  n = n + 1
             end
          end
