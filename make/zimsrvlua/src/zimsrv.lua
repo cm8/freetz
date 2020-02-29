@@ -358,43 +358,62 @@ function Zim:outputArticleOrEntry(n, a, o)
     return a
 end
 
+function Zim:searchHelp()
+    local r = {
+      { "<u>Search help:</u>", "" },
+      { "str", "equivalent to (*) below" },
+      { "^str", "prefix %s at start" },
+      { "str$", "suffix %s at end" },
+      { "^^str", "(*) word prefix %s at begin of %s" },
+      { "str$$", "word suffix %s at end of %s" },
+      { "^^str$$", "word %s matching %s" },
+      { "", "<i>search is case-insensitive</i>" },
+      u = '<tr><td style="text-align:right"><b>%s</b></td><td>%s</td></tr>',
+      v = 'search, match article titles with <b>str</b>',
+      w = 'at least one word in title'
+    }
+
+    for i, v in ipairs(r)
+    do r[i] = r.u:format(v[1], v[2]:format(r.v, r.w))
+    end
+    r[1] = '<table style="border:none;border-spacing:10px">\n'..r[1]
+    r[#r+1] = '</table>'
+
+    return r
+end
+
 function Zim:outputSearch(q, o)
     if q:match("^/[AQq][=/]")
-    then q = q:sub(4)
+    then q = q:sub(4):gsub("^%?q=", "")
     else return
     end
 
-    local r, n, t, ipat, lmt = {}, 0, '<a href="/%s">%s</a><br/>',
-    function (p) return p:gsub("%w",
-        function (u) return string.format("[%s%s]", u:lower(), u:upper()) end)
-    end
+    local r, a, m, p = {}, '<a href="/%s">%s</a><br/>', #q > 2 and 1000,
+    q:gsub("^[^^].*[^$]$", "^^%0"):gsub("%w",
+      function (u) return ("[%s%s]"):format(u:lower(), u:upper()) end
+    ):gsub("^%^%^(.*)", "%%f[%%w]%1"):gsub("(.*)%$%$$", "%1%%f[^%%w]")
 
-    r[#r+1] = "<html><body>"
-    r[#r+1] = "Search for '"..q.."' "
-
-    if #q < 3
-    then r[#r] = r[#r] .. "skipped, because length < 3."
-    else r[#r] = r[#r] .. "returned %d results%s."
-         lmt = 1000
-    end
-
-    if lmt
-    then q = "%f[%w]"..ipat(q).."%f[^%w]"
-         for l in self.i:lines()
-         do if n == lmt
-            then break
-            end
-            if l:match(q)
-            then r[#r+1] = t:format(l, l:gsub("_", " "))
-                 n = n + 1
+    if m
+    then for l in self.i:lines()
+         do if #r < m
+            then r[#r+1] = l:match(p) and a:format(l, l:gsub("_", " "))
+            else break
             end
          end
          self.i:seek("set", 0)
-         lmt = n < lmt and "" or
-           ", the result limit. Please use a search term more specific"
+         m = ("returned %d results%s"):format(#r, #r < m and ""
+           or ", the result limit. Please use a search term more specific")
+    else m = "skipped, because length < 3"
     end
+    m = ("<p>Search for '%s' %s.</p>"):format(q:gsub("[$^]", ""), m)
 
-    r[2] = "<ul>"..r[2]:format(n, lmt).."</ul>"
+    if #r == 0
+    then r = self:searchHelp()
+    end
+    r[1] = "<!DOCTYPE html><html><body>"..m..r[1]
+    r[#r+1] = '<br/><form action="/Q/">'
+    r[#r+1] = '<input type="text" name="q" value="'..q..'">'
+    r[#r+1] = '<input type="submit" value="New search"></form>'
     r[#r+1] = "</body></html>"
 
     r = table.concat(r, "\n")
